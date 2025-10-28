@@ -948,6 +948,67 @@ function getDomainFromUrl(url) {
 }
 
 /**
+ * Extract dominant color from favicon
+ */
+function extractColorFromFavicon(faviconUrl, callback) {
+  const img = new Image();
+  img.crossOrigin = 'Anonymous';
+
+  img.onload = function() {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      // Count color occurrences
+      const colorCounts = {};
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const a = data[i + 3];
+
+        // Skip transparent and very light/dark pixels
+        if (a < 128 || (r > 240 && g > 240 && b > 240) || (r < 15 && g < 15 && b < 15)) continue;
+
+        const key = `${r},${g},${b}`;
+        colorCounts[key] = (colorCounts[key] || 0) + 1;
+      }
+
+      // Find most common color
+      let dominantColor = null;
+      let maxCount = 0;
+      for (const [color, count] of Object.entries(colorCounts)) {
+        if (count > maxCount) {
+          maxCount = count;
+          dominantColor = color;
+        }
+      }
+
+      if (dominantColor) {
+        const [r, g, b] = dominantColor.split(',').map(Number);
+        callback(`rgb(${r}, ${g}, ${b})`);
+      } else {
+        callback('#3b82f6'); // Default blue
+      }
+    } catch (e) {
+      callback('#3b82f6'); // Default blue on error
+    }
+  };
+
+  img.onerror = function() {
+    callback('#3b82f6'); // Default blue on error
+  };
+
+  img.src = faviconUrl;
+}
+
+/**
  * Create a timeline group for same-domain items
  */
 function createTimelineGroup(group) {
@@ -962,11 +1023,19 @@ function createTimelineGroup(group) {
   const domain = group.domain;
   const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
 
-  icon.innerHTML = `<img src="${faviconUrl}" alt="${domain}" onerror="this.style.display='none'; this.parentElement.innerHTML='<svg width=\\'16\\' height=\\'16\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'2\\'><circle cx=\\'12\\' cy=\\'12\\' r=\\'10\\'/><line x1=\\'2\\' y1=\\'12\\' x2=\\'22\\' y2=\\'12\\'/><path d=\\'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\\'/></svg>';" style="width: 16px; height: 16px; border-radius: 2px;">`;
-
   // Override icon for transcript groups
   if (domain === 'Transcripts') {
     icon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="3" width="16" height="18" rx="2" stroke="#3b82f6" stroke-width="1.5" fill="white"/><path d="M8 7h8M8 11h6M8 15h4" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/><circle cx="16" cy="6" r="2" fill="#3b82f6" opacity="0.2"/><path d="M15 6l1 1" stroke="#3b82f6" stroke-width="1" stroke-linecap="round"/></svg>`;
+
+    // Set transcript color
+    container.style.setProperty('--group-color', '#3b82f6');
+  } else {
+    icon.innerHTML = `<img src="${faviconUrl}" alt="${domain}" onerror="this.style.display='none'; this.parentElement.innerHTML='<svg width=\\'16\\' height=\\'16\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'2\\'><circle cx=\\'12\\' cy=\\'12\\' r=\\'10\\'/><line x1=\\'2\\' y1=\\'12\\' x2=\\'22\\' y2=\\'12\\'/><path d=\\'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\\'/></svg>';" style="width: 16px; height: 16px; border-radius: 2px;">`;
+
+    // Extract color from favicon
+    extractColorFromFavicon(faviconUrl, (color) => {
+      container.style.setProperty('--group-color', color);
+    });
   }
 
   container.appendChild(icon);
