@@ -2277,6 +2277,49 @@ async function loadAnalytics() {
     });
 
     const captures = response.results || [];
+    console.log('Analytics: Loaded captures:', captures.length);
+    if (captures.length > 0) {
+      console.log('Analytics: Sample capture:', captures[0]);
+      console.log('Analytics: Sample timestamp:', new Date(captures[0].timestamp));
+    }
+
+    // If no captures, show empty state
+    if (captures.length === 0) {
+      const activityChart = document.getElementById('activityChart');
+      if (activityChart) {
+        activityChart.innerHTML = `
+          <div style="text-align: center; padding: 3rem 1rem; color: #71717a;">
+            <div style="font-size: 2rem; margin-bottom: 1rem;">📊</div>
+            <div style="font-size: 0.9375rem; font-weight: 500; margin-bottom: 0.5rem;">No Activity Yet</div>
+            <div style="font-size: 0.8125rem; opacity: 0.7;">Browse the web to start capturing your activity</div>
+          </div>
+        `;
+      }
+
+      const topDomainsList = document.getElementById('topDomainsList');
+      if (topDomainsList) {
+        topDomainsList.innerHTML = `
+          <div style="text-align: center; padding: 2rem 1rem; color: #71717a;">
+            <div style="font-size: 0.875rem;">No domains visited yet</div>
+          </div>
+        `;
+      }
+
+      const hourlyChart = document.getElementById('hourlyChart');
+      if (hourlyChart) {
+        hourlyChart.innerHTML = `
+          <div style="text-align: center; padding: 2rem 1rem; color: #71717a;">
+            <div style="font-size: 0.875rem;">No hourly data yet</div>
+          </div>
+        `;
+      }
+
+      document.getElementById('weekTotal').textContent = '0 captures this week';
+      document.getElementById('uniqueDomains').textContent = '0 unique domains';
+      document.getElementById('peakHourText').textContent = 'No peak hour yet';
+
+      return;
+    }
 
     // Calculate summary stats
     const total = captures.length;
@@ -3544,3 +3587,90 @@ async function saveTranscriptWithMetadata() {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', init);
+
+// Listen for storage changes to auto-refresh timeline when new screenshots are captured
+let refreshTimeout;
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local') {
+    // Check if any screenshot was added (keys starting with 'screenshot_')
+    const hasNewScreenshot = Object.keys(changes).some(key =>
+      key.startsWith('screenshot_') && changes[key].newValue
+    );
+
+    // Check if any transcript was added
+    const hasNewTranscript = Object.keys(changes).some(key =>
+      key.startsWith('transcript_') && changes[key].newValue
+    );
+
+    // Reload the current mode if new content was added
+    if (hasNewScreenshot || hasNewTranscript) {
+      console.log('BrowseBack: New content detected, refreshing view...');
+
+      // Debounce refresh to avoid multiple rapid updates
+      clearTimeout(refreshTimeout);
+      refreshTimeout = setTimeout(() => {
+        // Save current scroll position
+        const resultsContainer = document.getElementById('resultsContainer');
+        const scrollPosition = resultsContainer?.scrollTop || 0;
+
+        // Only refresh if we're in browse or search mode (not during a chat)
+        if (currentMode === 'browse') {
+          loadBrowseMode().then(() => {
+            // Restore scroll position after a brief delay to let content render
+            setTimeout(() => {
+              if (resultsContainer) {
+                resultsContainer.scrollTop = scrollPosition;
+              }
+            }, 100);
+          });
+        } else if (currentMode === 'search' && currentResults.length > 0) {
+          // Reload search mode to show new items
+          loadSearchMode().then(() => {
+            // Restore scroll position
+            setTimeout(() => {
+              if (resultsContainer) {
+                resultsContainer.scrollTop = scrollPosition;
+              }
+            }, 100);
+          });
+        }
+      }, 500); // Wait 500ms before refreshing to batch multiple changes
+    }
+  }
+});
+
+// Listen for direct messages from background when new captures are added
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'captureAdded') {
+    console.log('BrowseBack: New capture added notification received');
+
+    // Debounce refresh to avoid multiple rapid updates
+    clearTimeout(refreshTimeout);
+    refreshTimeout = setTimeout(() => {
+      // Save current scroll position
+      const resultsContainer = document.getElementById('resultsContainer');
+      const scrollPosition = resultsContainer?.scrollTop || 0;
+
+      // Only refresh if we're in browse or search mode
+      if (currentMode === 'browse') {
+        loadBrowseMode().then(() => {
+          // Restore scroll position after a brief delay to let content render
+          setTimeout(() => {
+            if (resultsContainer) {
+              resultsContainer.scrollTop = scrollPosition;
+            }
+          }, 100);
+        });
+      } else if (currentMode === 'search' && currentResults.length > 0) {
+        loadSearchMode().then(() => {
+          // Restore scroll position
+          setTimeout(() => {
+            if (resultsContainer) {
+              resultsContainer.scrollTop = scrollPosition;
+            }
+          }, 100);
+        });
+      }
+    }, 300); // Shorter delay since this is a direct notification
+  }
+});

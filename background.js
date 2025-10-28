@@ -138,6 +138,19 @@ async function captureCurrentTab() {
     // Save to storage
     const captureId = await storageManager.saveCapture(capture);
 
+    // Notify any open popups/sidebars that a new capture was saved
+    try {
+      chrome.runtime.sendMessage({
+        action: 'captureAdded',
+        captureId: captureId,
+        timestamp: capture.timestamp
+      }).catch(() => {
+        // Ignore errors if no popup is open
+      });
+    } catch (e) {
+      // Popup might not be open, that's okay
+    }
+
     // Process with AI in offscreen document (async, don't block)
     processWithAI(captureId, screenshot, domText);
 
