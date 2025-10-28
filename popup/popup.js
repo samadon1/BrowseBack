@@ -340,6 +340,20 @@ async function initializeMainApp() {
     analyticsPanel.style.display = 'none';
   });
 
+  // Analytics view toggle
+  document.querySelectorAll('.analytics-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.view;
+
+      // Update active state
+      document.querySelectorAll('.analytics-toggle-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Reload analytics with new view
+      loadAnalytics(view);
+    });
+  });
+
   settingsBtn.addEventListener('click', () => {
     settingsPanel.style.display = 'block';
     loadSettings();
@@ -679,35 +693,135 @@ async function handleSearch() {
 
     let results = response.results || [];
 
-    // Also search transcripts
+    // Also search transcripts with sophisticated scoring
     if (query) {
       const storage = await chrome.storage.local.get(null);
       const transcripts = Object.keys(storage)
         .filter(key => key.startsWith('transcript_'))
-        .map(key => storage[key])
-        .filter(transcript => {
-          const searchText = `${transcript.tabTitle || ''} ${transcript.text || ''} ${transcript.summary || ''}`.toLowerCase();
-          const queryLower = query.toLowerCase();
-          return searchText.includes(queryLower);
+        .map(key => {
+          const transcript = storage[key];
+          const title = (transcript.tabTitle || '').toLowerCase();
+          const text = (transcript.text || '').toLowerCase();
+          const summary = (transcript.summary || '').toLowerCase();
+          const normalizedQuery = query.toLowerCase().trim();
+          const searchTerms = normalizedQuery.split(/\s+/);
+
+          let score = 0;
+          let matchedTerms = 0;
+          let hasExactPhrase = false;
+
+          // PRIORITY 1: Exact phrase matches in transcripts (highest value)
+          if (searchTerms.length > 1) {
+            // Exact phrase in title
+            if (title.includes(normalizedQuery)) {
+              score += 600; // Even higher than screenshots since transcripts are rich content
+              hasExactPhrase = true;
+              if (title === normalizedQuery) score += 200;
+            }
+
+            // Exact phrase in transcript text (most important)
+            if (text.includes(normalizedQuery)) {
+              score += 400; // High boost for exact phrase in transcript
+              hasExactPhrase = true;
+
+              // Count phrase occurrences
+              const escapedQuery = normalizedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const occurrences = (text.match(new RegExp(escapedQuery, 'g')) || []).length;
+              score += Math.min(occurrences * 60, 240); // Up to 240 bonus
+
+              // Position bonus
+              const firstIndex = text.indexOf(normalizedQuery);
+              if (firstIndex !== -1 && firstIndex < 100) {
+                score += 120;
+              } else if (firstIndex !== -1 && firstIndex < 300) {
+                score += 60;
+              }
+            }
+
+            // Exact phrase in summary
+            if (summary.includes(normalizedQuery)) {
+              score += 350;
+              hasExactPhrase = true;
+            }
+          }
+
+          // PRIORITY 2: Individual term matching
+          searchTerms.forEach(term => {
+            const termWeight = hasExactPhrase ? 0.4 : 1.0;
+
+            if (title.includes(term)) {
+              score += 60 * termWeight;
+              matchedTerms++;
+              if (title.startsWith(term)) score += 25 * termWeight;
+            }
+
+            if (text.includes(term)) {
+              const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const occurrences = (text.match(new RegExp(escapedTerm, 'g')) || []).length;
+              score += Math.min(occurrences * 8, 50) * termWeight;
+              matchedTerms++;
+            }
+
+            if (summary.includes(term)) {
+              score += 40 * termWeight;
+              matchedTerms++;
+            }
+          });
+
+          // Penalty for not matching all terms
+          if (!hasExactPhrase && searchTerms.length > 1 && matchedTerms < searchTerms.length) {
+            score *= 0.5;
+          }
+
+          // Recency bonus
+          const ageInDays = (Date.now() - (transcript.timestamp || Date.now())) / (1000 * 60 * 60 * 24);
+          if (ageInDays < 1) score += 8;
+
+          return {
+            ...transcript,
+            type: 'transcript',
+            id: transcript.id || Date.now(),
+            searchScore: score,
+            hasExactPhrase: hasExactPhrase
+          };
         })
-        .map(transcript => ({
-          ...transcript,
-          type: 'transcript',
-          id: transcript.id || Date.now(),
-          searchScore: 100 // Give transcripts high score for now
-        }));
+        .filter(transcript => transcript.searchScore > 0);
 
       results = [...results, ...transcripts];
+
+      console.log(`📝 Found ${transcripts.length} matching transcripts`);
+      if (transcripts.length > 0) {
+        console.log('Top transcript:', {
+          title: transcripts[0].tabTitle,
+          score: transcripts[0].searchScore,
+          hasExactPhrase: transcripts[0].hasExactPhrase
+        });
+      }
     }
 
-    // Filter results to only show high-scoring matches when searching
+    // Sort all results by search score (highest first), then by timestamp
     if (query && results.length > 0) {
+      results.sort((a, b) => {
+        // Primary sort: by score (higher first)
+        if (b.searchScore !== a.searchScore) {
+          return b.searchScore - a.searchScore;
+        }
+        // Secondary sort: by timestamp (newer first)
+        return b.timestamp - a.timestamp;
+      });
+
       // Only show results with score > 30 (good matches)
       const filteredResults = results.filter(r => r.searchScore && r.searchScore > 30);
 
       if (filteredResults.length > 0) {
         results = filteredResults;
         console.log(`🔍 Filtered to ${results.length} high-quality matches (score > 30)`);
+        console.log('Top 3 results:', results.slice(0, 3).map(r => ({
+          type: r.type,
+          title: r.title || r.tabTitle,
+          score: r.searchScore,
+          hasExactPhrase: r.hasExactPhrase
+        })));
       }
     }
 
@@ -727,6 +841,50 @@ async function handleSearch() {
     console.error('Search failed:', error);
     showState('empty');
   }
+}
+
+/**
+ * Extract key search terms from natural language questions
+ * Removes filler words and focuses on important terms
+ */
+function extractKeyTerms(query) {
+  // Common question/filler words to remove
+  const fillerWords = new Set([
+    'what', 'when', 'where', 'who', 'why', 'how', 'which', 'whose',
+    'was', 'were', 'is', 'are', 'am', 'be', 'been', 'being',
+    'do', 'does', 'did', 'doing', 'done',
+    'have', 'has', 'had', 'having',
+    'can', 'could', 'would', 'should', 'will', 'shall', 'may', 'might', 'must',
+    'i', 'me', 'my', 'mine', 'you', 'your', 'yours',
+    'the', 'a', 'an', 'this', 'that', 'these', 'those',
+    'about', 'above', 'after', 'again', 'against', 'all', 'and', 'any', 'as', 'at',
+    'be', 'because', 'before', 'below', 'between', 'both', 'but', 'by',
+    'for', 'from', 'in', 'into', 'of', 'on', 'or', 'out', 'over',
+    'through', 'to', 'under', 'up', 'with',
+    'reading', 'readying', 'looking', 'viewing', 'watching', 'browsing', 'visiting'
+  ]);
+
+  // Extract words and filter out filler words
+  const words = query.toLowerCase()
+    .replace(/[?!.,;]/g, '') // Remove punctuation
+    .split(/\s+/)
+    .filter(word => {
+      // Keep if:
+      // 1. Not a filler word
+      // 2. At least 3 characters (or 2 for acronyms/special terms)
+      // 3. Not just numbers
+      return !fillerWords.has(word) &&
+             word.length >= 2 &&
+             !/^\d+$/.test(word);
+    });
+
+  // If we filtered out everything, return original query
+  if (words.length === 0) {
+    return query;
+  }
+
+  // Join remaining key terms
+  return words.join(' ');
 }
 
 /**
@@ -1815,43 +1973,137 @@ async function handleAskAI() {
   showState('aiLoading');
 
   try {
+    // Extract key terms from natural language question
+    const searchQuery = extractKeyTerms(query);
+    console.log(`🔍 Original query: "${query}"`);
+    console.log(`🔍 Extracted terms: "${searchQuery}"`);
+
     // First, do a semantic search to get relevant captures (screenshots)
     const response = await chrome.runtime.sendMessage({
       action: 'search',
-      query: query,
+      query: searchQuery,
       semantic: true // Use semantic search for better relevance
     });
 
     let allResults = response.results || [];
 
-    // Also search transcripts
+    // Also search transcripts with sophisticated scoring (same as Search mode)
     const storage = await chrome.storage.local.get(null);
     const transcripts = Object.keys(storage)
       .filter(key => key.startsWith('transcript_'))
-      .map(key => storage[key])
-      .filter(transcript => {
-        const searchText = `${transcript.tabTitle || ''} ${transcript.text || ''} ${transcript.summary || ''}`.toLowerCase();
-        const queryLower = query.toLowerCase();
-        return searchText.includes(queryLower);
+      .map(key => {
+        const transcript = storage[key];
+        const title = (transcript.tabTitle || '').toLowerCase();
+        const text = (transcript.text || '').toLowerCase();
+        const summary = (transcript.summary || '').toLowerCase();
+        const normalizedQuery = searchQuery.toLowerCase().trim(); // Use extracted key terms
+        const searchTerms = normalizedQuery.split(/\s+/);
+
+        let score = 0;
+        let matchedTerms = 0;
+        let hasExactPhrase = false;
+
+        // PRIORITY 1: Exact phrase matches
+        if (searchTerms.length > 1) {
+          if (title.includes(normalizedQuery)) {
+            score += 600;
+            hasExactPhrase = true;
+            if (title === normalizedQuery) score += 200;
+          }
+
+          if (text.includes(normalizedQuery)) {
+            score += 400;
+            hasExactPhrase = true;
+
+            const escapedQuery = normalizedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const occurrences = (text.match(new RegExp(escapedQuery, 'g')) || []).length;
+            score += Math.min(occurrences * 60, 240);
+
+            const firstIndex = text.indexOf(normalizedQuery);
+            if (firstIndex !== -1 && firstIndex < 100) {
+              score += 120;
+            } else if (firstIndex !== -1 && firstIndex < 300) {
+              score += 60;
+            }
+          }
+
+          if (summary.includes(normalizedQuery)) {
+            score += 350;
+            hasExactPhrase = true;
+          }
+        }
+
+        // PRIORITY 2: Individual term matching
+        searchTerms.forEach(term => {
+          const termWeight = hasExactPhrase ? 0.4 : 1.0;
+
+          if (title.includes(term)) {
+            score += 60 * termWeight;
+            matchedTerms++;
+            if (title.startsWith(term)) score += 25 * termWeight;
+          }
+
+          if (text.includes(term)) {
+            const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const occurrences = (text.match(new RegExp(escapedTerm, 'g')) || []).length;
+            score += Math.min(occurrences * 8, 50) * termWeight;
+            matchedTerms++;
+          }
+
+          if (summary.includes(term)) {
+            score += 40 * termWeight;
+            matchedTerms++;
+          }
+        });
+
+        if (!hasExactPhrase && searchTerms.length > 1 && matchedTerms < searchTerms.length) {
+          score *= 0.5;
+        }
+
+        const ageInDays = (Date.now() - (transcript.timestamp || Date.now())) / (1000 * 60 * 60 * 24);
+        if (ageInDays < 1) score += 8;
+
+        return {
+          ...transcript,
+          type: 'transcript',
+          id: transcript.id || Date.now(),
+          searchScore: score,
+          hasExactPhrase: hasExactPhrase
+        };
       })
-      .map(transcript => ({
-        ...transcript,
-        type: 'transcript',
-        id: transcript.id || Date.now(),
-        searchScore: 100 // Give transcripts high score for relevance
-      }));
+      .filter(transcript => transcript.searchScore > 0);
 
     // Combine results
     allResults = [...allResults, ...transcripts];
+
+    console.log(`🤖 Ask AI: Found ${allResults.length} total results (${transcripts.length} transcripts)`);
 
     if (allResults.length === 0) {
       showState('noResults');
       return;
     }
 
+    // Sort all results by search score (highest first), then by timestamp
+    allResults.sort((a, b) => {
+      if (b.searchScore !== a.searchScore) {
+        return b.searchScore - a.searchScore;
+      }
+      return b.timestamp - a.timestamp;
+    });
+
     // Filter for only highly relevant results (score > 20 for better accuracy)
     // Only include results with actual search scores (meaning they matched the query)
     const relevantResults = allResults.filter(r => r.searchScore && r.searchScore > 20);
+
+    console.log(`🤖 Ask AI: ${relevantResults.length} relevant results (score > 20)`);
+    if (relevantResults.length > 0) {
+      console.log('Top 3 relevant results:', relevantResults.slice(0, 3).map(r => ({
+        type: r.type,
+        title: r.title || r.tabTitle,
+        score: r.searchScore,
+        hasExactPhrase: r.hasExactPhrase
+      })));
+    }
 
     if (relevantResults.length === 0) {
       // No relevant results found
@@ -2265,10 +2517,129 @@ async function handleChatSend() {
   await handleChatSendFromInput();
 }
 
+// Track current analytics view
+let currentAnalyticsView = 'weekly';
+
+/**
+ * Render weekly activity chart (last 7 days)
+ */
+function renderWeeklyActivityChart(captures) {
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const activityByDay = new Array(7).fill(0);
+  const dateLabels = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    date.setHours(0, 0, 0, 0);
+    const nextDay = new Date(date);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const count = captures.filter(c => {
+      const captureDate = new Date(c.timestamp);
+      return captureDate >= date && captureDate < nextDay;
+    }).length;
+
+    activityByDay[6 - i] = count;
+    dateLabels[6 - i] = dayLabels[date.getDay()];
+  }
+
+  // Update title
+  document.getElementById('activityChartTitle').textContent = 'Activity (Last 7 Days)';
+
+  // Calculate week total
+  const weekTotal = activityByDay.reduce((sum, count) => sum + count, 0);
+  document.getElementById('weekTotal').textContent = `${weekTotal.toLocaleString()} captures this week`;
+
+  // Render chart
+  const maxActivity = Math.max(...activityByDay, 1);
+  const activityChart = document.getElementById('activityChart');
+  activityChart.innerHTML = activityByDay.map((count, index) => {
+    const height = (count / maxActivity) * 100;
+    return `
+      <div class="chart-bar">
+        <div class="bar-container">
+          <div class="bar-fill" style="height: ${height}%">
+            <div class="bar-value">${count}</div>
+          </div>
+        </div>
+        <div class="bar-label">${dateLabels[index]}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+/**
+ * Render daily activity chart (3-hour intervals for today)
+ */
+function renderDailyActivityChart(captures) {
+  // Get today's date range
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // Filter captures from today
+  const todayCaptures = captures.filter(c => {
+    const captureDate = new Date(c.timestamp);
+    return captureDate >= today && captureDate < tomorrow;
+  });
+
+  // 8 intervals of 3 hours each (0-3, 3-6, 6-9, 9-12, 12-15, 15-18, 18-21, 21-24)
+  const intervals = 8;
+  const activityByInterval = new Array(intervals).fill(0);
+  const intervalLabels = [
+    '12-3am', '3-6am', '6-9am', '9am-12pm',
+    '12-3pm', '3-6pm', '6-9pm', '9pm-12am'
+  ];
+
+  todayCaptures.forEach(capture => {
+    const hour = new Date(capture.timestamp).getHours();
+    const intervalIndex = Math.floor(hour / 3);
+    activityByInterval[intervalIndex]++;
+  });
+
+  console.log('📊 Daily Activity Data:', {
+    todayCaptures: todayCaptures.length,
+    activityByInterval,
+    maxActivity: Math.max(...activityByInterval, 1)
+  });
+
+  // Update title
+  document.getElementById('activityChartTitle').textContent = 'Activity (Today)';
+
+  // Calculate today's total
+  const todayTotal = activityByInterval.reduce((sum, count) => sum + count, 0);
+  document.getElementById('weekTotal').textContent = `${todayTotal.toLocaleString()} captures today`;
+
+  // Render chart
+  const maxActivity = Math.max(...activityByInterval, 1);
+  const activityChart = document.getElementById('activityChart');
+  activityChart.innerHTML = activityByInterval.map((count, index) => {
+    // Calculate height with minimum of 5% for bars with data
+    let height = 0;
+    if (count > 0) {
+      height = Math.max((count / maxActivity) * 100, 5);
+    }
+
+    return `
+      <div class="chart-bar">
+        <div class="bar-container">
+          <div class="bar-fill" style="height: ${height}%">
+            <div class="bar-value">${count}</div>
+          </div>
+        </div>
+        <div class="bar-label">${intervalLabels[index]}</div>
+      </div>
+    `;
+  }).join('');
+}
+
 /**
  * Load analytics data
  */
-async function loadAnalytics() {
+async function loadAnalytics(view = currentAnalyticsView) {
+  currentAnalyticsView = view;
+
   try {
     // Get all captures
     const response = await chrome.runtime.sendMessage({
@@ -2389,42 +2760,14 @@ async function loadAnalytics() {
       `;
     }).join('');
 
-    // Calculate activity by day (last 7 days)
-    const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const activityByDay = new Array(7).fill(0);
-    const dateLabels = [];
-
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-      date.setHours(0, 0, 0, 0);
-      const nextDay = new Date(date);
-      nextDay.setDate(nextDay.getDate() + 1);
-
-      const count = captures.filter(c => {
-        const captureDate = new Date(c.timestamp);
-        return captureDate >= date && captureDate < nextDay;
-      }).length;
-
-      activityByDay[6 - i] = count;
-      dateLabels[6 - i] = dayLabels[date.getDay()];
+    // Render activity chart based on view
+    if (view === 'daily') {
+      // Daily view: 3-hour intervals for today
+      renderDailyActivityChart(captures);
+    } else {
+      // Weekly view: last 7 days
+      renderWeeklyActivityChart(captures);
     }
-
-    // Render activity chart
-    const maxActivity = Math.max(...activityByDay, 1);
-    const activityChart = document.getElementById('activityChart');
-    activityChart.innerHTML = activityByDay.map((count, index) => {
-      const height = (count / maxActivity) * 100;
-      return `
-        <div class="chart-bar">
-          <div class="bar-container">
-            <div class="bar-fill" style="height: ${height}%">
-              <div class="bar-value">${count}</div>
-            </div>
-          </div>
-          <div class="bar-label">${dateLabels[index]}</div>
-        </div>
-      `;
-    }).join('');
 
     // Calculate hourly activity (24 hours)
     const hourlyActivity = new Array(24).fill(0);

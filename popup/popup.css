@@ -2223,20 +2223,18 @@ body {
   opacity: 1;
 }
 
-/* Transcript Card Styling */
+/* Transcript Card Styling - Remove distinctive styling */
 .transcript-card {
-  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
-  border-left: 2px solid var(--neutral-800);
+  /* Same as regular cards */
 }
 
 .transcript-card::before {
-  background: linear-gradient(90deg, var(--neutral-800), var(--neutral-600));
+  /* Keep the top border gradient on hover */
+  background: linear-gradient(90deg, var(--brand-accent), var(--brand-accent-light));
 }
 
 .transcript-card:hover {
-  border-left-color: var(--brand-accent);
-  border-color: var(--border-default);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(24, 24, 27, 0.05);
+  /* Same hover effect as regular cards */
 }
 
 .result-thumbnail {
@@ -3296,6 +3294,13 @@ body {
   margin-bottom: var(--space-4);
 }
 
+.section-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
 .analytics-section .section-title {
   font-size: var(--text-base);
   font-weight: 700;
@@ -3307,6 +3312,40 @@ body {
   font-size: var(--text-sm);
   color: var(--text-tertiary);
   font-weight: 500;
+}
+
+/* Analytics Toggle */
+.analytics-toggle {
+  display: flex;
+  gap: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+
+.analytics-toggle-btn {
+  padding: 6px 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+  white-space: nowrap;
+}
+
+.analytics-toggle-btn:hover {
+  color: var(--text-primary);
+  background: var(--neutral-100);
+}
+
+.analytics-toggle-btn.active {
+  color: white;
+  background: linear-gradient(135deg, var(--brand-accent) 0%, #2563eb 100%);
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
 }
 
 /* Top Sites Grid */

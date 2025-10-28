@@ -531,8 +531,16 @@
           <!-- Activity by Day -->
           <div class="analytics-section">
             <div class="section-header">
-              <div class="section-title">Activity (Last 7 Days)</div>
-              <div class="section-subtitle" id="weekTotal">0 captures this week</div>
+              <div class="section-title-row">
+                <div>
+                  <div class="section-title" id="activityChartTitle">Activity (Last 7 Days)</div>
+                  <div class="section-subtitle" id="weekTotal">0 captures this week</div>
+                </div>
+                <div class="analytics-toggle">
+                  <button class="analytics-toggle-btn active" data-view="weekly">Weekly</button>
+                  <button class="analytics-toggle-btn" data-view="daily">Daily</button>
+                </div>
+              </div>
             </div>
             <div id="activityChart" class="activity-chart">
               <!-- Will be populated dynamically -->
