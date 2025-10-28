@@ -2658,11 +2658,45 @@ async function handleTranscriptionComplete() {
   // Check if we have audio chunks
   if (!audioChunks || audioChunks.length === 0) {
     if (transcriptionStatus) {
-      transcriptionStatus.textContent = 'No audio recorded';
+      transcriptionStatus.textContent = 'No audio detected';
     }
     if (transcriptEmpty) {
-      transcriptEmpty.innerHTML = '<div style="text-align: center; opacity: 0.7;">No audio was recorded</div>';
+      transcriptEmpty.innerHTML = `
+        <div style="text-align: center; max-width: 400px; margin: 0 auto; padding: 2rem;">
+          <div style="font-size: 1.125rem; font-weight: 600; color: #18181b; margin-bottom: 0.75rem; letter-spacing: -0.01em;">No Audio Detected</div>
+          <div style="font-size: 0.9375rem; color: #71717a; line-height: 1.6; margin-bottom: 2rem;">
+            The recording didn't capture any audio. This usually happens when:
+          </div>
+          <div style="text-align: left; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+              <div style="width: 4px; height: 4px; background: #ef4444; border-radius: 50%; margin-top: 0.5rem; flex-shrink: 0;"></div>
+              <div>
+                <div style="font-weight: 600; font-size: 0.875rem; color: #18181b; margin-bottom: 0.25rem;">Audio sharing wasn't enabled</div>
+                <div style="font-size: 0.8125rem; color: #71717a;">Make sure to check "Share audio" when selecting a tab</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+              <div style="width: 4px; height: 4px; background: #ef4444; border-radius: 50%; margin-top: 0.5rem; flex-shrink: 0;"></div>
+              <div>
+                <div style="font-weight: 600; font-size: 0.875rem; color: #18181b; margin-bottom: 0.25rem;">The tab had no audio playing</div>
+                <div style="font-size: 0.8125rem; color: #71717a;">Start recording when audio is actively playing</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.75rem;">
+              <div style="width: 4px; height: 4px; background: #ef4444; border-radius: 50%; margin-top: 0.5rem; flex-shrink: 0;"></div>
+              <div>
+                <div style="font-weight: 600; font-size: 0.875rem; color: #18181b; margin-bottom: 0.25rem;">Tab volume was muted</div>
+                <div style="font-size: 0.8125rem; color: #71717a;">Ensure the tab's audio is unmuted</div>
+              </div>
+            </div>
+          </div>
+          <button onclick="hideTranscriptionPage()" style="display: inline-flex; align-items: center; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3); transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(59, 130, 246, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(59, 130, 246, 0.3)'">
+            Try Again
+          </button>
+        </div>
+      `;
     }
+    // Don't reset state yet - let user click "Try Again" button
     return;
   }
 
@@ -2670,6 +2704,51 @@ async function handleTranscriptionComplete() {
   const completeAudioBlob = new Blob(audioChunks, { type: audioChunks[0].type });
   const audioSizeMB = (completeAudioBlob.size / (1024 * 1024)).toFixed(2);
   console.log('📼 Complete audio:', completeAudioBlob.size, 'bytes (' + audioSizeMB + ' MB)');
+
+  // Check if audio blob is empty or too small (less than 1KB likely means no actual audio)
+  if (completeAudioBlob.size < 1000) {
+    if (transcriptionStatus) {
+      transcriptionStatus.textContent = 'No audio detected';
+    }
+    if (transcriptEmpty) {
+      transcriptEmpty.innerHTML = `
+        <div style="text-align: center; max-width: 400px; margin: 0 auto; padding: 2rem;">
+          <div style="font-size: 1.125rem; font-weight: 600; color: #18181b; margin-bottom: 0.75rem; letter-spacing: -0.01em;">No Audio Detected</div>
+          <div style="font-size: 0.9375rem; color: #71717a; line-height: 1.6; margin-bottom: 2rem;">
+            The recording was too short or didn't contain any audio.
+          </div>
+          <div style="text-align: left; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+              <div style="width: 4px; height: 4px; background: #3b82f6; border-radius: 50%; margin-top: 0.5rem; flex-shrink: 0;"></div>
+              <div>
+                <div style="font-weight: 600; font-size: 0.875rem; color: #18181b; margin-bottom: 0.25rem;">Check "Share audio" in the dialog</div>
+                <div style="font-size: 0.8125rem; color: #71717a;">Enable audio sharing when selecting a tab</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+              <div style="width: 4px; height: 4px; background: #3b82f6; border-radius: 50%; margin-top: 0.5rem; flex-shrink: 0;"></div>
+              <div>
+                <div style="font-weight: 600; font-size: 0.875rem; color: #18181b; margin-bottom: 0.25rem;">Make sure audio is playing</div>
+                <div style="font-size: 0.8125rem; color: #71717a;">Start the video/audio before recording</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.75rem;">
+              <div style="width: 4px; height: 4px; background: #3b82f6; border-radius: 50%; margin-top: 0.5rem; flex-shrink: 0;"></div>
+              <div>
+                <div style="font-weight: 600; font-size: 0.875rem; color: #18181b; margin-bottom: 0.25rem;">Record for at least 3-5 seconds</div>
+                <div style="font-size: 0.8125rem; color: #71717a;">Give it some time to capture audio</div>
+              </div>
+            </div>
+          </div>
+          <button onclick="hideTranscriptionPage()" style="display: inline-flex; align-items: center; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3); transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(59, 130, 246, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(59, 130, 246, 0.3)'">
+            Try Again
+          </button>
+        </div>
+      `;
+    }
+    // Don't reset state yet - let user click "Try Again" button
+    return;
+  }
 
   // Update UI to show transcription in progress
   if (transcriptionStatus) {
@@ -2768,32 +2847,103 @@ async function handleTranscriptionComplete() {
     console.error('Error details:', transcriptionError.name, transcriptionError.message);
 
     if (transcriptionStatus) {
-      transcriptionStatus.textContent = 'Transcription failed';
+      transcriptionStatus.textContent = 'No speech detected';
     }
 
-    // Show error message with helpful info
-    const errorMessage = `
-      <div style="padding: 1rem; text-align: center;">
-        <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚠️</div>
-        <div style="font-size: 1rem; margin-bottom: 0.5rem;">Transcription failed</div>
-        <div style="font-size: 0.85rem; opacity: 0.7; margin-bottom: 1rem;">${transcriptionError.message}</div>
-        <div style="font-size: 0.8rem; opacity: 0.6; line-height: 1.4;">
-          The Prompt API audio transcription is in early origin trial and has limitations.<br><br>
-          Your audio was recorded (${audioSizeMB} MB). You can download it and use external transcription services like:<br>
-          • OpenAI Whisper (free, excellent quality)<br>
-          • Google Speech-to-Text<br>
-          • Otter.ai
+    // Check if it's an empty transcript error (likely no speech in audio)
+    const isEmptyTranscript = transcriptionError.message.includes('Empty transcript');
+
+    if (isEmptyTranscript) {
+      // Show user-friendly "no speech detected" message
+      if (transcriptEmpty) {
+        transcriptEmpty.innerHTML = `
+          <div style="text-align: center; max-width: 400px; margin: 0 auto; padding: 2rem;">
+            <div style="font-size: 1.125rem; font-weight: 600; color: #18181b; margin-bottom: 0.75rem; letter-spacing: -0.01em;">No Speech Detected</div>
+            <div style="font-size: 0.9375rem; color: #71717a; line-height: 1.6; margin-bottom: 2rem;">
+              We recorded ${audioSizeMB} MB of audio, but couldn't detect any speech in it.
+            </div>
+            <div style="text-align: left; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+              <div style="font-size: 0.8125rem; font-weight: 600; color: #18181b; margin-bottom: 1rem;">This could be because:</div>
+              <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+                <div style="width: 4px; height: 4px; background: #f59e0b; border-radius: 50%; margin-top: 0.5rem; flex-shrink: 0;"></div>
+                <div>
+                  <div style="font-weight: 600; font-size: 0.875rem; color: #18181b; margin-bottom: 0.25rem;">The audio was music or sounds only</div>
+                  <div style="font-size: 0.8125rem; color: #71717a;">Transcription works best with clear speech</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+                <div style="width: 4px; height: 4px; background: #f59e0b; border-radius: 50%; margin-top: 0.5rem; flex-shrink: 0;"></div>
+                <div>
+                  <div style="font-weight: 600; font-size: 0.875rem; color: #18181b; margin-bottom: 0.25rem;">Audio quality was too low</div>
+                  <div style="font-size: 0.8125rem; color: #71717a;">Background noise or poor quality can affect detection</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 0.75rem;">
+                <div style="width: 4px; height: 4px; background: #f59e0b; border-radius: 50%; margin-top: 0.5rem; flex-shrink: 0;"></div>
+                <div>
+                  <div style="font-weight: 600; font-size: 0.875rem; color: #18181b; margin-bottom: 0.25rem;">Speech was in another language</div>
+                  <div style="font-size: 0.8125rem; color: #71717a;">Currently optimized for English speech</div>
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: center;">
+              <button onclick="hideTranscriptionPage()" style="display: inline-flex; align-items: center; padding: 0.75rem 1.5rem; background: white; color: #18181b; border: 2px solid #e4e4e7; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02); transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.borderColor='#d4d4d8'; this.style.boxShadow='0 4px 8px rgba(0, 0, 0, 0.06)'" onmouseout="this.style.transform='translateY(0)'; this.style.borderColor='#e4e4e7'; this.style.boxShadow='0 1px 2px rgba(0, 0, 0, 0.02)'">
+                Try Again
+              </button>
+              ${audioSizeMB > 0 ? `
+              <button onclick="downloadAudioRecording()" style="display: inline-flex; align-items: center; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3); transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(59, 130, 246, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(59, 130, 246, 0.3)'">
+                Download Audio
+              </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+    } else {
+      // Show generic error message for other types of errors
+      const errorMessage = `
+        <div style="text-align: center; max-width: 400px; margin: 0 auto; padding: 2rem;">
+          <div style="font-size: 1.125rem; font-weight: 600; color: #18181b; margin-bottom: 0.75rem; letter-spacing: -0.01em;">Transcription Failed</div>
+          <div style="font-size: 0.9375rem; color: #71717a; line-height: 1.6; margin-bottom: 2rem;">
+            ${transcriptionError.message}
+          </div>
+          <div style="text-align: left; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+            <div style="font-size: 0.8125rem; font-weight: 600; color: #18181b; margin-bottom: 0.75rem;">The Prompt API audio transcription is experimental</div>
+            <div style="font-size: 0.8125rem; color: #71717a; line-height: 1.6; margin-bottom: 1rem;">
+              Your audio was recorded (${audioSizeMB} MB). You can download it and use external transcription services:
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.8125rem; color: #18181b;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div style="width: 4px; height: 4px; background: #3b82f6; border-radius: 50%;"></div>
+                <div><strong>OpenAI Whisper</strong> - Free, excellent quality</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div style="width: 4px; height: 4px; background: #3b82f6; border-radius: 50%;"></div>
+                <div><strong>Google Speech-to-Text</strong> - Accurate, multiple languages</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div style="width: 4px; height: 4px; background: #3b82f6; border-radius: 50%;"></div>
+                <div><strong>Otter.ai</strong> - Easy to use, good for meetings</div>
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.75rem; justify-content: center;">
+            <button onclick="hideTranscriptionPage()" style="display: inline-flex; align-items: center; padding: 0.75rem 1.5rem; background: white; color: #18181b; border: 2px solid #e4e4e7; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02); transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.borderColor='#d4d4d8'; this.style.boxShadow='0 4px 8px rgba(0, 0, 0, 0.06)'" onmouseout="this.style.transform='translateY(0)'; this.style.borderColor='#e4e4e7'; this.style.boxShadow='0 1px 2px rgba(0, 0, 0, 0.02)'">
+              Close
+            </button>
+            ${audioSizeMB > 0 ? `
+            <button onclick="downloadAudioRecording()" style="display: inline-flex; align-items: center; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #18181b 0%, #27272a 100%); color: white; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(24, 24, 27, 0.2); transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(24, 24, 27, 0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(24, 24, 27, 0.2)'">
+              Download Audio
+            </button>
+            ` : ''}
+          </div>
         </div>
-      </div>
-    `;
+      `;
 
-    updateTranscriptDisplay(errorMessage);
-
-    // Show action pills with just download option
-    const transcriptActions = document.getElementById('transcriptActions');
-    if (transcriptActions) {
-      transcriptActions.style.display = 'block';
+      updateTranscriptDisplay(errorMessage);
     }
+
+    // Don't reset state yet - let user click buttons (Try Again / Download Audio)
   }
 }
 
@@ -2963,6 +3113,9 @@ function showTranscriptionPage(tabTitle) {
 function hideTranscriptionPage() {
   const transcriptionContainer = document.getElementById('transcriptionContainer');
   transcriptionContainer.style.display = 'none';
+
+  // Reset transcription state when hiding
+  resetTranscriptionState();
 }
 
 /**
