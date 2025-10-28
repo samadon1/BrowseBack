@@ -507,6 +507,11 @@ async function initializeMainApp() {
   await loadStats();
   await loadRecentCaptures();
   await initializeAI();
+
+  // Initialize Proofreader API in background (non-blocking)
+  initializeProofreader().catch(err => {
+    console.log('Proofreader initialization skipped:', err);
+  });
 }
 
 /**
@@ -678,10 +683,16 @@ async function handleSearch() {
   showState('loading');
 
   try {
+    // Correct typos in search query
+    const correctedQuery = await correctQuery(query);
+    if (correctedQuery !== query) {
+      console.log(`📝 Search query corrected: "${query}" → "${correctedQuery}"`);
+    }
+
     // Send search request to background for screenshots
     const response = await chrome.runtime.sendMessage({
       action: 'search',
-      query: query,
+      query: correctedQuery,
       semantic: semanticSearchEnabled
     });
 
@@ -694,7 +705,7 @@ async function handleSearch() {
     let results = response.results || [];
 
     // Also search transcripts with sophisticated scoring
-    if (query) {
+    if (correctedQuery) {
       const storage = await chrome.storage.local.get(null);
       const transcripts = Object.keys(storage)
         .filter(key => key.startsWith('transcript_'))
@@ -703,7 +714,7 @@ async function handleSearch() {
           const title = (transcript.tabTitle || '').toLowerCase();
           const text = (transcript.text || '').toLowerCase();
           const summary = (transcript.summary || '').toLowerCase();
-          const normalizedQuery = query.toLowerCase().trim();
+          const normalizedQuery = correctedQuery.toLowerCase().trim();
           const searchTerms = normalizedQuery.split(/\s+/);
 
           let score = 0;
@@ -1973,9 +1984,15 @@ async function handleAskAI() {
   showState('aiLoading');
 
   try {
-    // Extract key terms from natural language question
-    const searchQuery = extractKeyTerms(query);
+    // First, correct any typos/grammar mistakes
+    const correctedQuery = await correctQuery(query);
+
+    // Then extract key terms from natural language question
+    const searchQuery = extractKeyTerms(correctedQuery);
     console.log(`🔍 Original query: "${query}"`);
+    if (correctedQuery !== query) {
+      console.log(`📝 Corrected query: "${correctedQuery}"`);
+    }
     console.log(`🔍 Extracted terms: "${searchQuery}"`);
 
     // First, do a semantic search to get relevant captures (screenshots)
@@ -2519,6 +2536,82 @@ async function handleChatSend() {
 
 // Track current analytics view
 let currentAnalyticsView = 'weekly';
+
+// Proofreader API session
+let proofreaderSession = null;
+
+/**
+ * Initialize Proofreader API for query correction
+ */
+async function initializeProofreader() {
+  try {
+    // Check if Proofreader API is available
+    if (typeof window.Proofreader === 'undefined') {
+      console.log('📝 Proofreader API not available');
+      return false;
+    }
+
+    // Check availability
+    const availability = await window.Proofreader.availability();
+    console.log('📝 Proofreader availability:', availability);
+
+    if (availability === 'no') {
+      console.log('📝 Proofreader not available on this device');
+      return false;
+    }
+
+    // If downloadable, create session (will trigger download if needed)
+    if (availability === 'downloadable' || availability === 'readily') {
+      proofreaderSession = await window.Proofreader.create({
+        expectedInputLanguages: ['en'],
+        monitor(m) {
+          m.addEventListener('downloadprogress', (e) => {
+            console.log(`📝 Proofreader download: ${(e.loaded * 100).toFixed(1)}%`);
+          });
+        }
+      });
+
+      console.log('✅ Proofreader API initialized');
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.warn('Failed to initialize Proofreader API:', error);
+    return false;
+  }
+}
+
+/**
+ * Correct query using Proofreader API
+ */
+async function correctQuery(query) {
+  try {
+    // If no proofreader session, return original query
+    if (!proofreaderSession) {
+      return query;
+    }
+
+    // Proofread the query
+    const result = await proofreaderSession.proofread(query);
+
+    // If corrections were made, log and return corrected text
+    if (result.corrections && result.corrections.length > 0) {
+      console.log('📝 Query corrected:', {
+        original: query,
+        corrected: result.corrected,
+        corrections: result.corrections.length
+      });
+      return result.corrected;
+    }
+
+    // No corrections needed
+    return query;
+  } catch (error) {
+    console.warn('Query correction failed:', error);
+    return query; // Return original on error
+  }
+}
 
 /**
  * Render weekly activity chart (last 7 days)
