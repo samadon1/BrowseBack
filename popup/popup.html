@@ -88,6 +88,12 @@
               <path d="M7 3h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
           </button>
+          <button id="recordMeetingBtn" class="header-action-btn record-btn" title="Transcribe Tab Audio">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+              <circle cx="10" cy="10" r="3" fill="currentColor"/>
+            </svg>
+          </button>
           <button id="analyticsBtn" class="header-action-btn" title="Analytics">
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
               <rect x="3" y="13" width="3" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
@@ -231,6 +237,77 @@
             <path d="M5 5V3.5C5 2.67157 5.67157 2 6.5 2C7.32843 2 8 2.67157 8 3.5V5" stroke="currentColor" stroke-width="1.2"/>
           </svg>
           <span>100% Local & Private</span>
+        </div>
+      </div>
+
+      <!-- Transcription Interface (Full Page) -->
+      <div id="transcriptionContainer" class="transcription-fullpage" style="display: none;">
+        <!-- Transcription Header -->
+        <div class="chat-header-bar">
+          <button id="transcriptionBackBtn" class="chat-back-btn">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <div class="chat-header-title">
+            <div class="chat-title-icon recording-pulse">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                <circle cx="8" cy="8" r="3" fill="currentColor"/>
+              </svg>
+            </div>
+            <span id="transcriptionStatus">Transcribing...</span>
+          </div>
+          <button id="stopTranscriptionBtn" class="stop-recording-btn">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="4" y="4" width="8" height="8" rx="1" fill="currentColor"/>
+            </svg>
+            <span>Stop</span>
+          </button>
+        </div>
+
+        <!-- Live Transcript Display -->
+        <div id="transcriptDisplay" class="transcript-display">
+          <div class="transcript-empty">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+              <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+              <circle cx="24" cy="24" r="12" stroke="currentColor" stroke-width="2" opacity="0.5"/>
+              <circle cx="24" cy="24" r="6" fill="currentColor" opacity="0.7"/>
+            </svg>
+            <p>Listening for audio...</p>
+            <p class="transcript-hint">Transcript will appear here in real-time</p>
+          </div>
+          <div id="transcriptText" class="transcript-text" style="display: none;"></div>
+        </div>
+
+        <!-- Summary Section (shown after stopping) -->
+        <div id="transcriptSummary" class="transcript-summary" style="display: none;">
+          <div class="summary-header">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M10 2L12 6L16 8L12 10L10 14L8 10L4 8L8 6L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            </svg>
+            <span>AI Summary</span>
+          </div>
+          <div id="summaryText" class="summary-text"></div>
+        </div>
+
+        <!-- Transcript Info Bar -->
+        <div class="transcript-info-bar">
+          <div class="info-item">
+            <span class="info-label">Duration</span>
+            <span id="transcriptDuration" class="info-value">0:00</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Words</span>
+            <span id="transcriptWordCount" class="info-value">0</span>
+          </div>
+          <button id="downloadTranscriptBtn" class="download-transcript-btn" style="display: none;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 2V10M8 10L5 7M8 10L11 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M2 11V13C2 13.5523 2.44772 14 3 14H13C13.5523 14 14 13.5523 14 13V11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span>Download</span>
+          </button>
         </div>
       </div>
 

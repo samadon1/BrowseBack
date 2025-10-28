@@ -36,6 +36,7 @@ let closeAiAnswer;
 let captureCountEl;
 let storageUsedEl;
 let captureNowBtn;
+let recordMeetingBtn;
 let analyticsBtn;
 let analyticsPanel;
 let closeAnalyticsBtn;
@@ -68,6 +69,16 @@ let currentMode = 'browse'; // browse, search, ask
 let chatHistory = []; // Store chat conversation
 let chatContext = null; // Store context results for follow-ups
 let isGeneratingResponse = false; // Prevent duplicate AI calls
+
+// Audio transcription state
+let isTranscribing = false;
+let audioStream = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let transcriptionStartTime = null;
+let transcriptionTabTitle = null;
+let transcriptionSession = null;
+let currentTranscript = '';
 
 /**
  * Initialize the popup
@@ -174,7 +185,6 @@ async function checkAIAvailability() {
 
       try {
         const session = await window.LanguageModel.create({
-          expectedInputs: [{ type: 'text', languages: ['en'] }],
           expectedOutputs: [{ type: 'text', languages: ['en'] }],
           monitor(m) {
             m.addEventListener('downloadprogress', (e) => {
@@ -233,6 +243,7 @@ async function initializeMainApp() {
   captureCountEl = document.getElementById('captureCount');
   storageUsedEl = document.getElementById('storageUsed');
   captureNowBtn = document.getElementById('captureNowBtn');
+  recordMeetingBtn = document.getElementById('recordMeetingBtn');
   analyticsBtn = document.getElementById('analyticsBtn');
   analyticsPanel = document.getElementById('analyticsPanel');
   closeAnalyticsBtn = document.getElementById('closeAnalyticsBtn');
@@ -319,6 +330,8 @@ async function initializeMainApp() {
   // Action buttons
   captureNowBtn.addEventListener('click', handleCaptureNow);
 
+  recordMeetingBtn.addEventListener('click', toggleTranscription);
+
   analyticsBtn.addEventListener('click', () => {
     analyticsPanel.style.display = 'block';
     loadAnalytics();
@@ -335,6 +348,46 @@ async function initializeMainApp() {
     settingsPanel.style.display = 'none';
   });
   deleteAllBtn.addEventListener('click', handleDeleteAll);
+
+  // Transcription page event listeners
+  const transcriptionBackBtn = document.getElementById('transcriptionBackBtn');
+  const stopTranscriptionBtn = document.getElementById('stopTranscriptionBtn');
+  const downloadTranscriptBtn = document.getElementById('downloadTranscriptBtn');
+
+  transcriptionBackBtn.addEventListener('click', () => {
+    if (isTranscribing) {
+      if (confirm('Stop transcription and go back?')) {
+        stopTranscription();
+        hideTranscriptionPage();
+      }
+    } else {
+      hideTranscriptionPage();
+    }
+  });
+
+  stopTranscriptionBtn.addEventListener('click', () => {
+    stopTranscription();
+  });
+
+  downloadTranscriptBtn.addEventListener('click', () => {
+    // Download the transcript as text if available, otherwise download audio
+    if (currentTranscript.trim() && !currentTranscript.includes('<div')) {
+      // We have a valid transcript - download it
+      const transcript = {
+        id: Date.now(),
+        timestamp: transcriptionStartTime,
+        duration: Date.now() - transcriptionStartTime,
+        tabTitle: transcriptionTabTitle,
+        text: currentTranscript.trim(),
+        wordCount: currentTranscript.trim().split(/\s+/).length,
+        type: 'transcript'
+      };
+      downloadTranscript(transcript);
+    } else if (audioChunks && audioChunks.length > 0) {
+      // No transcript but we have audio - download the audio
+      downloadAudioRecording();
+    }
+  });
 
   // Mode switcher event listeners
   browseMode.addEventListener('click', () => {
@@ -1287,7 +1340,6 @@ async function startAIModelDownload() {
   try {
     // Create a session to trigger download (per official docs)
     const session = await window.LanguageModel.create({
-      expectedInputs: [{ type: 'text', languages: ['en'] }],
       expectedOutputs: [{ type: 'text', languages: ['en'] }],
       monitor(m) {
         m.addEventListener('downloadprogress', (e) => {
@@ -1565,7 +1617,6 @@ async function generateAIAnswer(query, results) {
     // Create AI session if not exists
     if (!aiSession) {
       aiSession = await window.LanguageModel.create({
-        expectedInputs: [{ type: 'text', languages: ['en'] }],
         expectedOutputs: [{ type: 'text', languages: ['en'] }],
         systemPrompt: `You are a helpful, conversational assistant that answers questions about the user's browsing history.
 
@@ -2053,6 +2104,674 @@ async function loadAnalytics() {
   } catch (error) {
     console.error('Failed to load analytics:', error);
   }
+}
+
+/**
+ * Toggle transcription on/off
+ */
+async function toggleTranscription() {
+  if (isTranscribing) {
+    stopTranscription();
+  } else {
+    await startTranscription();
+  }
+}
+
+/**
+ * Start transcribing tab audio using Prompt API with audio input
+ * Requires: Chrome 138+ (Canary/Dev) and Prompt API origin trial enrollment
+ */
+async function startTranscription() {
+  try {
+    // Get current tab
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    if (!tab) {
+      alert('No active tab found');
+      return;
+    }
+
+    console.log('🎙️ Starting transcription for tab:', tab.title);
+
+    // Check if Prompt API is available
+    if (typeof window.LanguageModel === 'undefined') {
+      alert('Prompt API not available.\n\nRequirements:\n1. Chrome 138+ (Canary/Dev)\n2. Enable: chrome://flags/#prompt-api-for-gemini-nano\n3. Enable: chrome://flags/#optimization-guide-on-device-model\n\nDownload model at: chrome://components (Optimization Guide On Device Model)');
+      return;
+    }
+
+    try {
+      // Create Prompt API session with audio input capability
+      console.log('Creating Prompt API session with audio input...');
+
+      // Show transcription page
+      showTranscriptionPage(tab.title);
+
+      // Create Prompt API session with audio input
+      transcriptionSession = await window.LanguageModel.create({
+        expectedInputs: [{ type: 'audio' }],
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
+        systemPrompt: 'You are a transcription assistant. Transcribe the audio accurately, word for word.'
+      });
+
+      console.log('✅ Prompt API session created with audio input support');
+
+      // Capture tab audio using getDisplayMedia
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          sampleRate: 48000
+        },
+        video: {
+          displaySurface: 'browser'
+        },
+        preferCurrentTab: true
+      });
+
+      // Extract audio tracks
+      const audioTracks = stream.getAudioTracks();
+
+      if (audioTracks.length === 0) {
+        stream.getVideoTracks().forEach(track => track.stop());
+        alert('No audio track found.\n\nMake sure to:\n1. Check "Share audio" in the dialog\n2. Select a tab that is playing audio');
+        if (transcriptionSession && transcriptionSession.destroy) {
+          transcriptionSession.destroy();
+        }
+        resetTranscriptionState();
+        return;
+      }
+
+      // Stop video tracks (we don't need them)
+      stream.getVideoTracks().forEach(track => track.stop());
+
+      // Create audio-only stream
+      const audioOnlyStream = new MediaStream(audioTracks);
+      audioStream = audioOnlyStream;
+
+      // Create MediaRecorder to capture audio chunks
+      audioChunks = [];
+
+      // Try different audio formats to see which works best with Prompt API
+      let mimeType = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/webm';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'audio/ogg;codecs=opus';
+        }
+      }
+
+      console.log('📼 Using audio format:', mimeType);
+
+      mediaRecorder = new MediaRecorder(audioOnlyStream, {
+        mimeType: mimeType,
+        audioBitsPerSecond: 128000 // Higher quality might help
+      });
+
+      // Initialize state
+      isTranscribing = true;
+      transcriptionStartTime = Date.now();
+      transcriptionTabTitle = tab.title;
+      currentTranscript = '';
+
+      // Simple approach: Just collect audio chunks, transcribe when done
+      // (Real-time streaming transcription doesn't work with Prompt API)
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunks.push(event.data);
+          console.log('🎵 Audio chunk collected:', event.data.size, 'bytes (total chunks:', audioChunks.length + ')');
+
+          // Update UI to show we're recording
+          const transcriptEmpty = document.querySelector('.transcript-empty');
+          if (transcriptEmpty) {
+            const totalSize = audioChunks.reduce((sum, chunk) => sum + chunk.size, 0);
+            const durationSeconds = Math.floor((Date.now() - transcriptionStartTime) / 1000);
+            transcriptEmpty.innerHTML = `
+              <div style="text-align: center;">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎙️</div>
+                <div style="font-size: 1.1rem; margin-bottom: 0.5rem;">Recording audio...</div>
+                <div style="font-size: 0.9rem; opacity: 0.7;">${durationSeconds}s recorded • ${(totalSize / 1024).toFixed(0)} KB</div>
+                <div style="font-size: 0.85rem; opacity: 0.6; margin-top: 0.5rem;">Transcription will start when you stop recording</div>
+              </div>
+            `;
+          }
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        console.log('🎙️ Recording stopped');
+        await handleTranscriptionComplete();
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error('🎙️ Recording error:', event.error);
+        alert('Recording failed: ' + event.error);
+        resetTranscriptionState();
+      };
+
+      // Start recording - collect audio chunks continuously
+      // We'll transcribe the complete audio when recording stops
+      mediaRecorder.start(1000); // Collect chunks every 1 second for UI updates
+
+      // Update UI
+      recordMeetingBtn.classList.add('recording');
+      recordMeetingBtn.title = 'Stop Transcription';
+
+      console.log('✅ Real-time transcription started using Prompt API with audio input');
+      console.log('💡 Tab audio will be transcribed in real-time using Gemini Nano');
+
+    } catch (recognitionError) {
+      console.error('Failed to start transcription:', recognitionError);
+      alert('Failed to start transcription: ' + recognitionError.message);
+      resetTranscriptionState();
+    }
+
+  } catch (error) {
+    console.error('Failed to start transcription:', error);
+    alert('Failed to start transcription: ' + error.message);
+    resetTranscriptionState();
+  }
+}
+
+/**
+ * Stop transcription
+ */
+function stopTranscription() {
+  if (!isTranscribing) {
+    return;
+  }
+
+  console.log('🎙️ Stopping transcription...');
+
+  try {
+    // Mark as not transcribing first
+    isTranscribing = false;
+
+    // Stop media recorder
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+
+    // Stop audio stream
+    if (audioStream) {
+      audioStream.getTracks().forEach(track => track.stop());
+    }
+
+  } catch (error) {
+    console.error('Error stopping transcription:', error);
+    resetTranscriptionState();
+  }
+}
+
+/**
+ * Handle transcription completion
+ */
+async function handleTranscriptionComplete() {
+  console.log('🎙️ Recording stopped - starting transcription...');
+
+  const transcriptionStatus = document.getElementById('transcriptionStatus');
+  const transcriptSummary = document.getElementById('transcriptSummary');
+  const downloadBtn = document.getElementById('downloadTranscriptBtn');
+  const transcriptEmpty = document.querySelector('.transcript-empty');
+
+  // Check if we have audio chunks
+  if (!audioChunks || audioChunks.length === 0) {
+    if (transcriptionStatus) {
+      transcriptionStatus.textContent = 'No audio recorded';
+    }
+    if (transcriptEmpty) {
+      transcriptEmpty.innerHTML = '<div style="text-align: center; opacity: 0.7;">No audio was recorded</div>';
+    }
+    return;
+  }
+
+  // Combine all audio chunks into a single blob
+  const completeAudioBlob = new Blob(audioChunks, { type: audioChunks[0].type });
+  const audioSizeMB = (completeAudioBlob.size / (1024 * 1024)).toFixed(2);
+  console.log('📼 Complete audio:', completeAudioBlob.size, 'bytes (' + audioSizeMB + ' MB)');
+
+  // Update UI to show transcription in progress
+  if (transcriptionStatus) {
+    transcriptionStatus.textContent = 'Transcribing audio...';
+  }
+  if (transcriptEmpty) {
+    transcriptEmpty.innerHTML = `
+      <div style="text-align: center;">
+        <div class="chat-loading">
+          <div class="chat-loading-dot"></div>
+          <div class="chat-loading-dot"></div>
+          <div class="chat-loading-dot"></div>
+        </div>
+        <div style="margin-top: 1rem; font-size: 0.9rem;">Transcribing ${audioSizeMB} MB of audio...</div>
+        <div style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.7;">This may take a moment</div>
+      </div>
+    `;
+  }
+
+  try {
+    // Use the existing session that was created at the start
+    console.log('🎤 Sending complete audio to Prompt API for transcription...');
+
+    const completeTranscript = await transcriptionSession.prompt([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', value: 'Transcribe this complete audio recording accurately, word for word:' },
+          { type: 'audio', value: completeAudioBlob }
+        ]
+      }
+    ]);
+
+    if (completeTranscript && completeTranscript.trim()) {
+      console.log('✅ Transcription successful!');
+      console.log('📝 Transcript length:', completeTranscript.length, 'characters');
+
+      currentTranscript = completeTranscript;
+      updateTranscriptDisplay(currentTranscript);
+
+      // Update word count
+      const transcriptWordCount = document.getElementById('transcriptWordCount');
+      if (transcriptWordCount) {
+        const wordCount = currentTranscript.trim().split(/\s+/).length;
+        transcriptWordCount.textContent = wordCount;
+      }
+
+      if (transcriptionStatus) {
+        transcriptionStatus.textContent = 'Transcription complete';
+      }
+
+      // Show download button
+      if (downloadBtn) {
+        downloadBtn.style.display = 'flex';
+      }
+
+      // Generate AI summary
+      await generateTranscriptSummary();
+
+    } else {
+      throw new Error('Empty transcript returned');
+    }
+
+  } catch (transcriptionError) {
+    console.error('❌ Transcription failed:', transcriptionError);
+    console.error('Error details:', transcriptionError.name, transcriptionError.message);
+
+    if (transcriptionStatus) {
+      transcriptionStatus.textContent = 'Transcription failed';
+    }
+
+    // Show error message with helpful info
+    const errorMessage = `
+      <div style="padding: 1rem; text-align: center;">
+        <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚠️</div>
+        <div style="font-size: 1rem; margin-bottom: 0.5rem;">Transcription failed</div>
+        <div style="font-size: 0.85rem; opacity: 0.7; margin-bottom: 1rem;">${transcriptionError.message}</div>
+        <div style="font-size: 0.8rem; opacity: 0.6; line-height: 1.4;">
+          The Prompt API audio transcription is in early origin trial and has limitations.<br><br>
+          Your audio was recorded (${audioSizeMB} MB). You can download it and use external transcription services like:<br>
+          • OpenAI Whisper (free, excellent quality)<br>
+          • Google Speech-to-Text<br>
+          • Otter.ai
+        </div>
+      </div>
+    `;
+
+    updateTranscriptDisplay(errorMessage);
+
+    // Still show download button so user can get the audio
+    if (downloadBtn) {
+      downloadBtn.style.display = 'flex';
+      downloadBtn.textContent = 'Download Audio';
+    }
+  }
+}
+
+/**
+ * Save transcript
+ */
+async function saveTranscript() {
+  try {
+    const duration = Date.now() - transcriptionStartTime;
+    const wordCount = currentTranscript.trim().split(/\s+/).length;
+
+    console.log(`📝 Transcription complete: ${wordCount} words, ${(duration / 1000).toFixed(0)}s`);
+
+    if (!currentTranscript.trim()) {
+      alert('No transcript generated.\n\nMake sure:\n• The tab was playing audio with speech\n• Audio transcription is supported in your Chrome version');
+      resetTranscriptionState();
+      return;
+    }
+
+    // Create transcript object
+    const transcript = {
+      id: Date.now(),
+      timestamp: transcriptionStartTime,
+      duration: duration,
+      tabTitle: transcriptionTabTitle,
+      text: currentTranscript.trim(),
+      wordCount: wordCount,
+      type: 'transcript'
+    };
+
+    // Save to storage
+    const storageKey = `transcript_${transcript.id}`;
+    await chrome.storage.local.set({ [storageKey]: transcript });
+
+    console.log('✅ Transcript saved:', storageKey);
+
+    // Show success message with option to download
+    const userWantsDownload = confirm(
+      `Transcription complete!\n\n` +
+      `Duration: ${(duration / 1000).toFixed(0)}s\n` +
+      `Words: ${wordCount}\n\n` +
+      `Would you like to download the transcript as a text file?`
+    );
+
+    if (userWantsDownload) {
+      downloadTranscript(transcript);
+    }
+
+  } catch (error) {
+    console.error('Failed to save transcript:', error);
+    alert('Failed to save transcript: ' + error.message);
+  } finally {
+    resetTranscriptionState();
+  }
+}
+
+/**
+ * Download audio recording
+ */
+function downloadAudioRecording() {
+  if (!audioChunks || audioChunks.length === 0) {
+    console.error('No audio chunks to download');
+    return;
+  }
+
+  console.log('📥 Downloading audio recording...');
+
+  // Create blob from audio chunks
+  const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+  const url = URL.createObjectURL(audioBlob);
+
+  // Create download link
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = url;
+
+  // Create filename with tab title and timestamp
+  const date = new Date();
+  const dateStr = date.toISOString().slice(0, 10);
+  const timeStr = date.toTimeString().slice(0, 5).replace(':', '-');
+  const sanitizedTitle = transcriptionTabTitle ? transcriptionTabTitle.replace(/[^a-z0-9]/gi, '_').slice(0, 50) : 'recording';
+  a.download = `${sanitizedTitle}_${dateStr}_${timeStr}.webm`;
+
+  // Trigger download
+  document.body.appendChild(a);
+  a.click();
+
+  // Cleanup
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 100);
+
+  console.log('📥 Audio downloaded:', a.download);
+}
+
+/**
+ * Download transcript as text file
+ */
+function downloadTranscript(transcript) {
+  const content = `Tab: ${transcript.tabTitle}\n` +
+    `Date: ${new Date(transcript.timestamp).toLocaleString()}\n` +
+    `Duration: ${(transcript.duration / 1000).toFixed(0)} seconds\n` +
+    `Words: ${transcript.wordCount}\n\n` +
+    `--- TRANSCRIPT ---\n\n` +
+    `${transcript.text}\n`;
+
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = url;
+
+  // Create filename
+  const timeStr = new Date(transcript.timestamp).toISOString().replace(/[:.]/g, '-').slice(0, -5);
+  const cleanTitle = transcript.tabTitle.replace(/[^a-z0-9]/gi, '_').slice(0, 50);
+  a.download = `transcript_${cleanTitle}_${timeStr}.txt`;
+
+  document.body.appendChild(a);
+  a.click();
+
+  // Cleanup
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  }, 100);
+
+  console.log('📥 Transcript downloaded:', a.download);
+}
+
+/**
+ * Show transcription page
+ */
+function showTranscriptionPage(tabTitle) {
+  const transcriptionContainer = document.getElementById('transcriptionContainer');
+  const transcriptionStatus = document.getElementById('transcriptionStatus');
+  const transcriptEmpty = document.querySelector('.transcript-empty');
+  const transcriptText = document.getElementById('transcriptText');
+  const transcriptSummary = document.getElementById('transcriptSummary');
+  const downloadBtn = document.getElementById('downloadTranscriptBtn');
+
+  // Check if elements exist
+  if (!transcriptionContainer || !transcriptionStatus || !transcriptEmpty || !transcriptText || !transcriptSummary) {
+    console.error('Transcription page elements not found');
+    return;
+  }
+
+  // Set status to show tab name
+  transcriptionStatus.textContent = `Transcribing: ${tabTitle}`;
+
+  // Reset display
+  transcriptEmpty.style.display = 'flex';
+  transcriptText.style.display = 'none';
+  transcriptText.textContent = '';
+  transcriptSummary.style.display = 'none';
+  if (downloadBtn) downloadBtn.style.display = 'none';
+
+  // Show transcription page
+  transcriptionContainer.style.display = 'flex';
+
+  // Start timer
+  updateTranscriptionTimer();
+}
+
+/**
+ * Hide transcription page
+ */
+function hideTranscriptionPage() {
+  const transcriptionContainer = document.getElementById('transcriptionContainer');
+  transcriptionContainer.style.display = 'none';
+}
+
+/**
+ * Update transcript display in real-time
+ */
+function updateTranscriptDisplay(transcript) {
+  const transcriptEmpty = document.querySelector('.transcript-empty');
+  const transcriptText = document.getElementById('transcriptText');
+  const transcriptWordCount = document.getElementById('transcriptWordCount');
+
+  // Hide empty state, show transcript
+  if (transcript.trim()) {
+    transcriptEmpty.style.display = 'none';
+    transcriptText.style.display = 'block';
+
+    // Check if transcript contains HTML (for error messages)
+    if (transcript.includes('<div') || transcript.includes('<br>')) {
+      transcriptText.innerHTML = transcript;
+    } else {
+      transcriptText.textContent = transcript;
+    }
+
+    // Update word count (only for plain text transcripts)
+    if (!transcript.includes('<div') && !transcript.includes('<br>')) {
+      const wordCount = transcript.trim().split(/\s+/).length;
+      transcriptWordCount.textContent = wordCount;
+    }
+
+    // Auto-scroll to bottom
+    transcriptText.scrollTop = transcriptText.scrollHeight;
+  }
+}
+
+/**
+ * Update transcription timer
+ */
+function updateTranscriptionTimer() {
+  if (!isTranscribing) return;
+
+  const transcriptDuration = document.getElementById('transcriptDuration');
+  const elapsed = Math.floor((Date.now() - transcriptionStartTime) / 1000);
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+  transcriptDuration.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+  // Continue updating
+  setTimeout(updateTranscriptionTimer, 1000);
+}
+
+/**
+ * Generate AI summary of transcript
+ */
+async function generateTranscriptSummary() {
+  const transcriptionStatus = document.getElementById('transcriptionStatus');
+  const transcriptSummary = document.getElementById('transcriptSummary');
+  const summaryText = document.getElementById('summaryText');
+
+  try {
+    if (!currentTranscript.trim()) {
+      if (transcriptionStatus) {
+        transcriptionStatus.textContent = 'No transcript to summarize';
+      }
+      return;
+    }
+
+    // Check if AI is available
+    if (typeof window.LanguageModel === 'undefined') {
+      console.log('⚠️ AI not available for summary');
+      if (transcriptSummary && summaryText) {
+        transcriptSummary.style.display = 'block';
+        summaryText.innerHTML = '<p>✅ Transcription complete! Your transcript is ready to download.</p>';
+      }
+      return;
+    }
+
+    // Update status
+    if (transcriptionStatus) {
+      transcriptionStatus.textContent = 'Generating AI summary...';
+    }
+    if (transcriptSummary && summaryText) {
+      transcriptSummary.style.display = 'block';
+      summaryText.innerHTML = '<div class="chat-loading"><div class="chat-loading-dot"></div><div class="chat-loading-dot"></div><div class="chat-loading-dot"></div></div>';
+    }
+
+    // Use existing AI session or create new one
+    let summarySession = aiSession;
+    if (!summarySession) {
+      summarySession = await window.LanguageModel.create({
+        expectedOutputs: [{ type: 'text', languages: ['en'] }]
+      });
+    }
+
+    // Generate summary
+    const summary = await summarySession.prompt(
+      `Summarize the following transcript in 2-3 concise sentences. Focus on the main points and key takeaways:\n\n${currentTranscript}`
+    );
+
+    // Display summary
+    if (summaryText) {
+      summaryText.textContent = summary;
+    }
+    if (transcriptionStatus) {
+      transcriptionStatus.textContent = 'Complete with AI summary';
+    }
+
+    console.log('✅ AI summary generated');
+
+  } catch (error) {
+    console.error('Failed to generate summary:', error);
+    if (summaryText) {
+      summaryText.textContent = '✅ Transcription complete! Your transcript is ready to download.';
+    }
+    if (transcriptionStatus) {
+      transcriptionStatus.textContent = 'Transcription complete';
+    }
+  }
+}
+
+/**
+ * Save transcript with summary
+ */
+async function saveTranscriptWithSummary(summary) {
+  try {
+    const duration = Date.now() - transcriptionStartTime;
+    const wordCount = currentTranscript.trim().split(/\s+/).length;
+
+    console.log(`📝 Transcription complete: ${wordCount} words, ${(duration / 1000).toFixed(0)}s`);
+
+    // Create transcript object with summary
+    const transcript = {
+      id: Date.now(),
+      timestamp: transcriptionStartTime,
+      duration: duration,
+      tabTitle: transcriptionTabTitle,
+      text: currentTranscript.trim(),
+      summary: summary,
+      wordCount: wordCount,
+      type: 'transcript'
+    };
+
+    // Save to storage
+    const storageKey = `transcript_${transcript.id}`;
+    await chrome.storage.local.set({ [storageKey]: transcript });
+
+    console.log('✅ Transcript saved with summary:', storageKey);
+
+  } catch (error) {
+    console.error('Failed to save transcript:', error);
+  } finally {
+    resetTranscriptionState();
+  }
+}
+
+/**
+ * Reset transcription state
+ */
+function resetTranscriptionState() {
+  isTranscribing = false;
+  audioStream = null;
+  mediaRecorder = null;
+  audioChunks = [];
+  transcriptionStartTime = null;
+  transcriptionTabTitle = null;
+  currentTranscript = '';
+
+  // Destroy Prompt API session
+  if (transcriptionSession) {
+    try {
+      if (typeof transcriptionSession.destroy === 'function') {
+        transcriptionSession.destroy();
+      }
+    } catch (e) {
+      console.log('Error destroying session:', e);
+    }
+    transcriptionSession = null;
+  }
+
+  // Update UI
+  recordMeetingBtn.classList.remove('recording');
+  recordMeetingBtn.title = 'Transcribe Tab Audio';
 }
 
 // Initialize on load

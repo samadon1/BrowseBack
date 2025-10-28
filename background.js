@@ -305,6 +305,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'startTabCapture') {
+    // Handle tab audio capture for transcription
+    // Note: chrome.tabCapture.capture() must be called from a user gesture
+    // The actual stream will be obtained in the popup using the getDisplayMedia approach
+    sendResponse({ success: true });
+    return true;
+  }
+
   if (request.action === 'captureNow') {
     captureCurrentTab().then(() => {
       sendResponse({ success: true });
