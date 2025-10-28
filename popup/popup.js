@@ -352,7 +352,6 @@ async function initializeMainApp() {
   // Transcription page event listeners
   const transcriptionBackBtn = document.getElementById('transcriptionBackBtn');
   const stopTranscriptionBtn = document.getElementById('stopTranscriptionBtn');
-  const downloadTranscriptBtn = document.getElementById('downloadTranscriptBtn');
 
   transcriptionBackBtn.addEventListener('click', () => {
     if (isTranscribing) {
@@ -371,24 +370,96 @@ async function initializeMainApp() {
     stopTranscription();
   });
 
-  downloadTranscriptBtn.addEventListener('click', () => {
-    // Download the transcript as text if available, otherwise download audio
-    if (currentTranscript.trim() && !currentTranscript.includes('<div')) {
-      // We have a valid transcript - download it
-      const transcript = {
-        id: Date.now(),
-        timestamp: transcriptionStartTime,
-        duration: Date.now() - transcriptionStartTime,
-        tabTitle: transcriptionTabTitle,
-        text: currentTranscript.trim(),
-        wordCount: currentTranscript.trim().split(/\s+/).length,
-        type: 'transcript'
-      };
-      downloadTranscript(transcript);
-    } else if (audioChunks && audioChunks.length > 0) {
-      // No transcript but we have audio - download the audio
-      downloadAudioRecording();
+  // Action pill event listeners
+  document.addEventListener('click', async (e) => {
+    if (e.target.classList.contains('action-pill')) {
+      const action = e.target.dataset.action;
+
+      switch (action) {
+        case 'notes':
+          await handleActionPill('Create structured notes from this transcript', 'notes');
+          break;
+
+        case 'flashcards':
+          await handleActionPill('Create study flashcards from this transcript', 'flashcards');
+          break;
+
+        case 'summary':
+          await handleActionPill('Provide a more detailed summary of this transcript', 'summary');
+          break;
+      }
     }
+
+    // Tab switcher
+    if (e.target.classList.contains('tab-btn')) {
+      const tab = e.target.dataset.tab;
+      const transcriptTabContent = document.getElementById('transcriptTabContent');
+      const summaryTabContent = document.getElementById('summaryTabContent');
+      const tabBtns = document.querySelectorAll('.tab-btn');
+
+      // Update active tab
+      tabBtns.forEach(btn => btn.classList.remove('active'));
+      e.target.classList.add('active');
+
+      // Toggle visibility
+      if (tab === 'transcript') {
+        transcriptTabContent.style.display = 'block';
+        summaryTabContent.style.display = 'none';
+      } else if (tab === 'summary') {
+        transcriptTabContent.style.display = 'none';
+        summaryTabContent.style.display = 'block';
+      }
+    }
+  });
+
+  // Query input event listeners
+  const transcriptQueryBtn = document.getElementById('transcriptQueryBtn');
+  const transcriptQuery = document.getElementById('transcriptQuery');
+
+  if (transcriptQueryBtn) {
+    transcriptQueryBtn.addEventListener('click', handleTranscriptQuery);
+  }
+
+  if (transcriptQuery) {
+    transcriptQuery.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleTranscriptQuery();
+      }
+    });
+  }
+
+  // Save transcript modal event listeners
+  const saveTranscriptModal = document.getElementById('saveTranscriptModal');
+  const closeSaveModal = document.getElementById('closeSaveModal');
+  const cancelSaveBtn = document.getElementById('cancelSaveBtn');
+  const confirmSaveBtn = document.getElementById('confirmSaveBtn');
+  const saveTranscriptHeaderBtn = document.getElementById('saveTranscriptHeaderBtn');
+  const transcriptName = document.getElementById('transcriptName');
+  const tagPills = document.querySelectorAll('.tag-pill');
+
+  if (closeSaveModal) {
+    closeSaveModal.addEventListener('click', closeSaveTranscriptModal);
+  }
+
+  if (cancelSaveBtn) {
+    cancelSaveBtn.addEventListener('click', closeSaveTranscriptModal);
+  }
+
+  if (confirmSaveBtn) {
+    confirmSaveBtn.addEventListener('click', saveTranscriptWithMetadata);
+  }
+
+  if (saveTranscriptHeaderBtn) {
+    saveTranscriptHeaderBtn.addEventListener('click', openSaveTranscriptModal);
+  }
+
+  // Tag pill selection
+  tagPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      tagPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+    });
   });
 
   // Mode switcher event listeners
@@ -561,7 +632,7 @@ async function handleSearch() {
   showState('loading');
 
   try {
-    // Send search request to background with semantic flag
+    // Send search request to background for screenshots
     const response = await chrome.runtime.sendMessage({
       action: 'search',
       query: query,
@@ -575,6 +646,27 @@ async function handleSearch() {
     }
 
     let results = response.results || [];
+
+    // Also search transcripts
+    if (query) {
+      const storage = await chrome.storage.local.get(null);
+      const transcripts = Object.keys(storage)
+        .filter(key => key.startsWith('transcript_'))
+        .map(key => storage[key])
+        .filter(transcript => {
+          const searchText = `${transcript.tabTitle || ''} ${transcript.text || ''} ${transcript.summary || ''}`.toLowerCase();
+          const queryLower = query.toLowerCase();
+          return searchText.includes(queryLower);
+        })
+        .map(transcript => ({
+          ...transcript,
+          type: 'transcript',
+          id: transcript.id || Date.now(),
+          searchScore: 100 // Give transcripts high score for now
+        }));
+
+      results = [...results, ...transcripts];
+    }
 
     // Filter results to only show high-scoring matches when searching
     if (query && results.length > 0) {
@@ -637,13 +729,29 @@ function isNaturalLanguageQuestion(query) {
  */
 async function loadRecentCaptures() {
   try {
+    // Load screenshots from background script
     const response = await chrome.runtime.sendMessage({
       action: 'search',
       query: ''
     });
 
-    if (response.results && response.results.length > 0) {
-      allResults = response.results;
+    let allItems = response.results || [];
+
+    // Load transcripts from storage
+    const storage = await chrome.storage.local.get(null);
+    const transcripts = Object.keys(storage)
+      .filter(key => key.startsWith('transcript_'))
+      .map(key => ({
+        ...storage[key],
+        type: 'transcript',
+        id: storage[key].id || key.replace('transcript_', '')
+      }));
+
+    // Combine and sort by timestamp
+    allItems = [...allItems, ...transcripts].sort((a, b) => b.timestamp - a.timestamp);
+
+    if (allItems.length > 0) {
+      allResults = allItems;
       displayedResultsCount = 0;
       displayTimelineViewPaginated(true); // true = initial load
     } else {
@@ -902,15 +1010,42 @@ function createResultCard(result) {
   const card = document.createElement('div');
   card.className = 'result-card';
 
+  // Add type indicator
+  if (result.type === 'transcript') {
+    card.classList.add('transcript-card');
+  }
+
   // Add relevance indicator if search score exists
   if (result.searchScore > 0) {
     card.setAttribute('data-score', Math.round(result.searchScore));
   }
 
-  const thumbnail = document.createElement('img');
+  const thumbnail = document.createElement('div');
   thumbnail.className = 'result-thumbnail';
-  thumbnail.src = result.screenshot || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
-  thumbnail.alt = result.title;
+
+  // Different thumbnail for transcripts
+  if (result.type === 'transcript') {
+    thumbnail.innerHTML = `
+      <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="24" height="24" fill="#fafafa"/>
+        <circle cx="12" cy="12" r="8" stroke="#18181b" stroke-width="1.5" opacity="0.15"/>
+        <circle cx="12" cy="12" r="3" fill="#18181b" opacity="0.3"/>
+        <path d="M12 8V12L14 14" stroke="#18181b" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+      </svg>
+    `;
+    thumbnail.style.background = 'linear-gradient(135deg, #fafafa 0%, #f4f4f5 100%)';
+    thumbnail.style.display = 'flex';
+    thumbnail.style.alignItems = 'center';
+    thumbnail.style.justifyContent = 'center';
+  } else {
+    const img = document.createElement('img');
+    img.src = result.screenshot || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
+    img.alt = result.title || 'Screenshot';
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'cover';
+    thumbnail.appendChild(img);
+  }
 
   const content = document.createElement('div');
   content.className = 'result-content';
@@ -920,15 +1055,43 @@ function createResultCard(result) {
 
   // Highlight search query in title if searching
   const query = searchInput.value.trim();
-  if (query && result.searchScore > 0) {
-    title.innerHTML = highlightText(result.title || 'Untitled Page', query);
+
+  // Different title for transcripts
+  if (result.type === 'transcript') {
+    const transcriptTitle = result.tabTitle || 'Audio Transcript';
+    if (query && result.searchScore > 0) {
+      title.innerHTML = highlightText(transcriptTitle, query);
+    } else {
+      title.textContent = transcriptTitle;
+    }
   } else {
-    title.textContent = result.title || 'Untitled Page';
+    if (query && result.searchScore > 0) {
+      title.innerHTML = highlightText(result.title || 'Untitled Page', query);
+    } else {
+      title.textContent = result.title || 'Untitled Page';
+    }
   }
 
   const url = document.createElement('div');
   url.className = 'result-url';
-  url.textContent = truncateUrl(result.url);
+
+  // Different metadata for transcripts
+  if (result.type === 'transcript') {
+    const duration = result.duration ? `${Math.round(result.duration / 1000)}s` : '0s';
+    const wordCount = result.wordCount || 0;
+    const tag = result.tag || 'other';
+    const tagColors = {
+      meeting: '#3b82f6',
+      studies: '#8b5cf6',
+      lecture: '#10b981',
+      interview: '#f59e0b',
+      other: '#71717a'
+    };
+    const tagColor = tagColors[tag] || tagColors.other;
+    url.innerHTML = `<span style="opacity: 0.6;">🎤</span> ${duration} • ${wordCount} words • <span style="display: inline-block; padding: 0.125rem 0.5rem; background: ${tagColor}15; color: ${tagColor}; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">${tag}</span>`;
+  } else {
+    url.textContent = truncateUrl(result.url);
+  }
 
   const timestamp = document.createElement('div');
   timestamp.className = 'result-timestamp';
@@ -939,19 +1102,21 @@ function createResultCard(result) {
   content.appendChild(timestamp);
 
   // Add text snippet with highlighting if available
-  if (result.extractedText || result.domText) {
+  const textContent = result.type === 'transcript'
+    ? (result.text || result.summary)
+    : (result.extractedText || result.domText);
+
+  if (textContent) {
     const snippet = document.createElement('div');
     snippet.className = 'result-snippet';
 
-    const text = result.extractedText || result.domText;
-
     if (query && result.searchScore > 0) {
       // Extract relevant snippet around search term
-      const relevantSnippet = extractRelevantSnippet(text, query, 100);
+      const relevantSnippet = extractRelevantSnippet(textContent, query, 100);
       snippet.innerHTML = highlightText(relevantSnippet, query);
     } else {
       // Clean HTML from text before displaying
-      const cleanedText = cleanHtmlFromText(text);
+      const cleanedText = cleanHtmlFromText(textContent);
       snippet.textContent = truncateText(cleanedText, 100);
     }
 
@@ -961,9 +1126,13 @@ function createResultCard(result) {
   card.appendChild(thumbnail);
   card.appendChild(content);
 
-  // Click handler - open URL
+  // Click handler
   card.addEventListener('click', () => {
-    chrome.tabs.create({ url: result.url });
+    if (result.type === 'transcript') {
+      openTranscriptViewer(result);
+    } else {
+      chrome.tabs.create({ url: result.url });
+    }
   });
 
   return card;
@@ -2337,7 +2506,6 @@ async function handleTranscriptionComplete() {
 
   const transcriptionStatus = document.getElementById('transcriptionStatus');
   const transcriptSummary = document.getElementById('transcriptSummary');
-  const downloadBtn = document.getElementById('downloadTranscriptBtn');
   const transcriptEmpty = document.querySelector('.transcript-empty');
 
   // Check if we have audio chunks
@@ -2422,10 +2590,17 @@ async function handleTranscriptionComplete() {
         transcriptionStatus.innerHTML = 'Complete';
       }
 
-      // Show download button with animation
-      if (downloadBtn) {
-        downloadBtn.style.display = 'flex';
-        downloadBtn.style.animation = 'fadeIn 0.3s ease-out';
+      // Show tab switcher
+      const transcriptTabs = document.getElementById('transcriptTabs');
+      if (transcriptTabs) {
+        transcriptTabs.style.display = 'flex';
+        transcriptTabs.style.animation = 'fadeIn 0.3s ease-out';
+      }
+
+      // Show save button in header
+      const saveTranscriptHeaderBtn = document.getElementById('saveTranscriptHeaderBtn');
+      if (saveTranscriptHeaderBtn) {
+        saveTranscriptHeaderBtn.style.display = 'flex';
       }
 
       // Show success indicator briefly
@@ -2467,10 +2642,10 @@ async function handleTranscriptionComplete() {
 
     updateTranscriptDisplay(errorMessage);
 
-    // Still show download button so user can get the audio
-    if (downloadBtn) {
-      downloadBtn.style.display = 'flex';
-      downloadBtn.textContent = 'Download Audio';
+    // Show action pills with just download option
+    const transcriptActions = document.getElementById('transcriptActions');
+    if (transcriptActions) {
+      transcriptActions.style.display = 'block';
     }
   }
 }
@@ -2611,7 +2786,7 @@ function showTranscriptionPage(tabTitle) {
   const transcriptEmpty = document.querySelector('.transcript-empty');
   const transcriptText = document.getElementById('transcriptText');
   const transcriptSummary = document.getElementById('transcriptSummary');
-  const downloadBtn = document.getElementById('downloadTranscriptBtn');
+  const transcriptActions = document.getElementById('transcriptActions');
 
   // Check if elements exist
   if (!transcriptionContainer || !transcriptionStatus || !transcriptEmpty || !transcriptText || !transcriptSummary) {
@@ -2627,7 +2802,6 @@ function showTranscriptionPage(tabTitle) {
   transcriptText.style.display = 'none';
   transcriptText.textContent = '';
   transcriptSummary.style.display = 'none';
-  if (downloadBtn) downloadBtn.style.display = 'none';
 
   // Show transcription page
   transcriptionContainer.style.display = 'flex';
@@ -2645,13 +2819,68 @@ function hideTranscriptionPage() {
 }
 
 /**
+ * Open saved transcript viewer
+ */
+function openTranscriptViewer(transcript) {
+  const transcriptionContainer = document.getElementById('transcriptionContainer');
+  const transcriptionStatus = document.getElementById('transcriptionStatus');
+  const transcriptEmpty = document.querySelector('.transcript-empty');
+  const transcriptText = document.getElementById('transcriptText');
+  const transcriptSummary = document.getElementById('transcriptSummary');
+  const summaryText = document.getElementById('summaryText');
+  const transcriptTabs = document.getElementById('transcriptTabs');
+  const transcriptTabContent = document.getElementById('transcriptTabContent');
+  const summaryTabContent = document.getElementById('summaryTabContent');
+
+  // Set global variable for action pills to work
+  currentTranscript = transcript.text || '';
+  transcriptionTabTitle = transcript.tabTitle || 'Audio Transcript';
+
+  // Show transcription container
+  transcriptionContainer.style.display = 'flex';
+
+  // Update status
+  if (transcriptionStatus) {
+    transcriptionStatus.textContent = 'Complete with AI summary';
+  }
+
+  // Hide empty state, show transcript
+  if (transcriptEmpty) transcriptEmpty.style.display = 'none';
+  if (transcriptText) {
+    transcriptText.style.display = 'block';
+    transcriptText.textContent = transcript.text || 'No transcript available';
+  }
+
+  // Show tabs
+  if (transcriptTabs) {
+    transcriptTabs.style.display = 'flex';
+  }
+
+  // Show save button
+  const saveTranscriptHeaderBtn = document.getElementById('saveTranscriptHeaderBtn');
+  if (saveTranscriptHeaderBtn) {
+    saveTranscriptHeaderBtn.style.display = 'flex';
+  }
+
+  // Show transcript tab by default
+  if (transcriptTabContent) transcriptTabContent.style.display = 'block';
+  if (summaryTabContent) summaryTabContent.style.display = 'none';
+
+  // Show summary if available
+  if (transcript.summary && transcriptSummary && summaryText) {
+    transcriptSummary.style.display = 'block';
+    summaryText.textContent = transcript.summary;
+  }
+
+  console.log('📖 Opened saved transcript:', transcript.id);
+}
+
+/**
  * Update transcript display in real-time
  */
 function updateTranscriptDisplay(transcript) {
   const transcriptEmpty = document.querySelector('.transcript-empty');
   const transcriptText = document.getElementById('transcriptText');
-  const transcriptWordCount = document.getElementById('transcriptWordCount');
-
   // Hide empty state, show transcript
   if (transcript.trim()) {
     transcriptEmpty.style.display = 'none';
@@ -2662,12 +2891,6 @@ function updateTranscriptDisplay(transcript) {
       transcriptText.innerHTML = transcript;
     } else {
       transcriptText.textContent = transcript;
-    }
-
-    // Update word count (only for plain text transcripts)
-    if (!transcript.includes('<div') && !transcript.includes('<br>')) {
-      const wordCount = transcript.trim().split(/\s+/).length;
-      transcriptWordCount.textContent = wordCount;
     }
 
     // Auto-scroll to bottom
@@ -2796,6 +3019,123 @@ async function saveTranscriptWithSummary(summary) {
 }
 
 /**
+ * Handle transcript query
+ */
+async function handleTranscriptQuery() {
+  try {
+    const transcriptQuery = document.getElementById('transcriptQuery');
+    const query = transcriptQuery?.value.trim();
+
+    if (!query) return;
+
+    // Check if AI is available
+    if (typeof window.LanguageModel === 'undefined') {
+      alert('AI not available. Please check Prompt API settings.');
+      return;
+    }
+
+    // Show loading state
+    const summaryText = document.getElementById('summaryText');
+    if (summaryText) {
+      summaryText.innerHTML = '<div class="chat-loading"><div class="chat-loading-dot"></div><div class="chat-loading-dot"></div><div class="chat-loading-dot"></div></div>';
+    }
+
+    // Switch to summary tab
+    const summaryTab = document.querySelector('[data-tab="summary"]');
+    const transcriptTab = document.querySelector('[data-tab="transcript"]');
+    const transcriptTabContent = document.getElementById('transcriptTabContent');
+    const summaryTabContent = document.getElementById('summaryTabContent');
+
+    if (summaryTab) {
+      transcriptTab?.classList.remove('active');
+      summaryTab.classList.add('active');
+      if (transcriptTabContent) transcriptTabContent.style.display = 'none';
+      if (summaryTabContent) summaryTabContent.style.display = 'block';
+    }
+
+    // Create AI session
+    const querySession = await window.LanguageModel.create({
+      expectedOutputs: [{ type: 'text', languages: ['en'] }]
+    });
+
+    // Generate response
+    const response = await querySession.prompt(
+      `Based on this transcript, answer the following question:\n\nQuestion: ${query}\n\nTranscript:\n${currentTranscript}`
+    );
+
+    // Update summary with response (render as markdown)
+    if (summaryText) {
+      summaryText.innerHTML = parseMarkdown(response);
+    }
+
+    // Clear input
+    transcriptQuery.value = '';
+
+    // Cleanup
+    if (querySession && querySession.destroy) {
+      querySession.destroy();
+    }
+
+    console.log('✅ Query answered successfully');
+
+  } catch (error) {
+    console.error('Failed to answer query:', error);
+    const summaryText = document.getElementById('summaryText');
+    if (summaryText) {
+      summaryText.textContent = 'Failed to answer query. Please try again.';
+    }
+  }
+}
+
+/**
+ * Handle action pill clicks
+ */
+async function handleActionPill(promptPrefix, actionType) {
+  try {
+    // Check if AI is available
+    if (typeof window.LanguageModel === 'undefined') {
+      alert('AI not available. Please check Prompt API settings.');
+      return;
+    }
+
+    // Show loading state
+    const summaryText = document.getElementById('summaryText');
+    if (summaryText) {
+      summaryText.innerHTML = '<div class="chat-loading"><div class="chat-loading-dot"></div><div class="chat-loading-dot"></div><div class="chat-loading-dot"></div></div>';
+    }
+
+    // Create AI session
+    const actionSession = await window.LanguageModel.create({
+      expectedOutputs: [{ type: 'text', languages: ['en'] }]
+    });
+
+    // Generate response
+    const response = await actionSession.prompt(
+      `${promptPrefix}:\n\n${currentTranscript}`
+    );
+
+    // Update summary with response (render as markdown)
+    if (summaryText) {
+      summaryText.innerHTML = parseMarkdown(response);
+    }
+
+    // Cleanup
+    if (actionSession && actionSession.destroy) {
+      actionSession.destroy();
+    }
+
+    console.log(`✅ ${actionType} generated successfully`);
+
+  } catch (error) {
+    console.error(`Failed to generate ${actionType}:`, error);
+    const summaryText = document.getElementById('summaryText');
+    if (summaryText) {
+      summaryText.textContent = `Failed to generate ${actionType}. Please try again.`;
+    }
+  }
+}
+
+/**
  * Reset transcription state
  */
 function resetTranscriptionState() {
@@ -2822,6 +3162,84 @@ function resetTranscriptionState() {
   // Update UI
   recordMeetingBtn.classList.remove('recording');
   recordMeetingBtn.title = 'Transcribe Tab Audio';
+}
+
+/**
+ * Open save transcript modal
+ */
+function openSaveTranscriptModal() {
+  const modal = document.getElementById('saveTranscriptModal');
+  const nameInput = document.getElementById('transcriptName');
+  const tagPills = document.querySelectorAll('.tag-pill');
+
+  // Pre-fill with tab title
+  if (nameInput) {
+    nameInput.value = transcriptionTabTitle || '';
+  }
+
+  // Reset tag selection
+  tagPills.forEach(pill => pill.classList.remove('active'));
+
+  // Show modal
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+}
+
+/**
+ * Close save transcript modal
+ */
+function closeSaveTranscriptModal() {
+  const modal = document.getElementById('saveTranscriptModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+/**
+ * Save transcript with metadata
+ */
+async function saveTranscriptWithMetadata() {
+  const nameInput = document.getElementById('transcriptName');
+  const selectedTag = document.querySelector('.tag-pill.active');
+
+  const name = nameInput?.value.trim() || transcriptionTabTitle || 'Untitled Transcript';
+  const tag = selectedTag?.dataset.tag || 'other';
+
+  try {
+    // Get the current summary if available
+    const summaryText = document.getElementById('summaryText');
+    const summary = summaryText?.textContent || '';
+
+    const transcript = {
+      id: Date.now(),
+      timestamp: transcriptionStartTime || Date.now(),
+      duration: Date.now() - (transcriptionStartTime || Date.now()),
+      tabTitle: name,
+      text: currentTranscript.trim(),
+      summary: summary,
+      wordCount: currentTranscript.trim().split(/\s+/).length,
+      type: 'transcript',
+      tag: tag,
+      customName: name !== transcriptionTabTitle // Track if user renamed it
+    };
+
+    // Save to storage
+    const storageKey = `transcript_${transcript.id}`;
+    await chrome.storage.local.set({ [storageKey]: transcript });
+
+    console.log('✅ Transcript saved with metadata:', storageKey, { name, tag });
+
+    // Close modal
+    closeSaveTranscriptModal();
+
+    // Show success feedback
+    alert('Transcript saved successfully!');
+
+  } catch (error) {
+    console.error('Failed to save transcript:', error);
+    alert('Failed to save transcript. Please try again.');
+  }
 }
 
 // Initialize on load

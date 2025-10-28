@@ -249,59 +249,108 @@
               <path d="M12 4L6 10L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
-          <div class="chat-header-title">
+          <div class="chat-header-title" style="flex: 1;">
             <span id="transcriptionStatus">Transcribing...</span>
           </div>
-          <button id="stopTranscriptionBtn" class="stop-recording-btn" style="display: none;">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="4" y="4" width="8" height="8" rx="1" fill="currentColor"/>
-            </svg>
-            <span>Stop</span>
-          </button>
+          <div style="display: flex; gap: 0.5rem;">
+            <button id="stopTranscriptionBtn" class="stop-recording-btn" style="display: none;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="4" y="4" width="8" height="8" rx="1" fill="currentColor"/>
+              </svg>
+              <span>Stop</span>
+            </button>
+            <button id="saveTranscriptHeaderBtn" class="save-transcript-btn" style="display: none;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Save</span>
+            </button>
+          </div>
         </div>
 
-        <!-- Live Transcript Display -->
-        <div id="transcriptDisplay" class="transcript-display">
-          <div class="transcript-empty">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2" opacity="0.3"/>
-              <circle cx="24" cy="24" r="12" stroke="currentColor" stroke-width="2" opacity="0.5"/>
-              <circle cx="24" cy="24" r="6" fill="currentColor" opacity="0.7"/>
-            </svg>
-            <p>Listening for audio...</p>
-            <p class="transcript-hint">Transcript will appear here in real-time</p>
-          </div>
-          <div id="transcriptText" class="transcript-text" style="display: none;"></div>
+        <!-- Tab Switcher -->
+        <div id="transcriptTabs" class="transcript-tabs" style="display: none;">
+          <button class="tab-btn active" data-tab="transcript">Transcript</button>
+          <button class="tab-btn" data-tab="summary">Summary</button>
         </div>
 
-        <!-- Summary Section (shown after stopping) -->
-        <div id="transcriptSummary" class="transcript-summary" style="display: none;">
-          <div class="summary-header">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M10 2L12 6L16 8L12 10L10 14L8 10L4 8L8 6L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-            </svg>
-            <span>AI Summary</span>
+        <!-- Tab Content Container -->
+        <div id="transcriptTabContent" class="tab-content">
+          <!-- Live Transcript Display -->
+          <div id="transcriptDisplay" class="transcript-display">
+            <div class="transcript-empty">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+                <circle cx="24" cy="24" r="12" stroke="currentColor" stroke-width="2" opacity="0.5"/>
+                <circle cx="24" cy="24" r="6" fill="currentColor" opacity="0.7"/>
+              </svg>
+              <p>Listening for audio...</p>
+              <p class="transcript-hint">Transcript will appear here in real-time</p>
+            </div>
+            <div id="transcriptText" class="transcript-text" style="display: none;"></div>
           </div>
-          <div id="summaryText" class="summary-text"></div>
         </div>
 
-        <!-- Transcript Info Bar -->
-        <div class="transcript-info-bar">
-          <div class="info-item">
-            <span class="info-label">Duration</span>
-            <span id="transcriptDuration" class="info-value">0:00</span>
+        <!-- Summary Tab Content -->
+        <div id="summaryTabContent" class="tab-content" style="display: none;">
+          <!-- Transcript Actions -->
+          <div id="transcriptActions" class="transcript-actions">
+            <div class="actions-label">Quick Actions</div>
+            <div class="actions-pills">
+              <button class="action-pill" data-action="notes">Draft Notes</button>
+              <button class="action-pill" data-action="flashcards">Create Flashcards</button>
+              <button class="action-pill" data-action="summary">Expand Summary</button>
+            </div>
+
+            <!-- Query Input -->
+            <div class="query-input-container">
+              <input type="text" id="transcriptQuery" class="query-input" placeholder="Ask a question about the transcript...">
+              <button id="transcriptQueryBtn" class="query-btn">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 8H14M14 8L8 2M14 8L8 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
-          <div class="info-item">
-            <span class="info-label">Words</span>
-            <span id="transcriptWordCount" class="info-value">0</span>
+
+          <!-- Summary Section -->
+          <div id="transcriptSummary" class="transcript-summary" style="display: none;">
+            <div id="summaryText" class="summary-text"></div>
           </div>
-          <button id="downloadTranscriptBtn" class="download-transcript-btn" style="display: none;">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M8 2V10M8 10L5 7M8 10L11 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 11V13C2 13.5523 2.44772 14 3 14H13C13.5523 14 14 13.5523 14 13V11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            <span>Download</span>
-          </button>
+        </div>
+      </div>
+
+      <!-- Save Transcript Modal -->
+      <div id="saveTranscriptModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Save Transcript</h3>
+            <button id="closeSaveModal" class="modal-close-btn">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M5 5L15 15M5 15L15 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="transcriptName">Name</label>
+              <input type="text" id="transcriptName" class="form-input" placeholder="Give this transcript a name...">
+            </div>
+            <div class="form-group">
+              <label>Tag</label>
+              <div class="tag-pills">
+                <button class="tag-pill" data-tag="meeting">Meeting</button>
+                <button class="tag-pill" data-tag="studies">Studies</button>
+                <button class="tag-pill" data-tag="lecture">Lecture</button>
+                <button class="tag-pill" data-tag="interview">Interview</button>
+                <button class="tag-pill" data-tag="other">Other</button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="cancelSaveBtn" class="btn-secondary">Cancel</button>
+            <button id="confirmSaveBtn" class="btn-primary">Save</button>
+          </div>
         </div>
       </div>
 
