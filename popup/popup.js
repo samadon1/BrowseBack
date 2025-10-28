@@ -359,9 +359,11 @@ async function initializeMainApp() {
       if (confirm('Stop transcription and go back?')) {
         stopTranscription();
         hideTranscriptionPage();
+        resetTranscriptionState();
       }
     } else {
       hideTranscriptionPage();
+      resetTranscriptionState();
     }
   });
 
@@ -2225,14 +2227,39 @@ async function startTranscription() {
           if (transcriptEmpty) {
             const totalSize = audioChunks.reduce((sum, chunk) => sum + chunk.size, 0);
             const durationSeconds = Math.floor((Date.now() - transcriptionStartTime) / 1000);
+            const minutes = Math.floor(durationSeconds / 60);
+            const seconds = durationSeconds % 60;
+            const timeDisplay = minutes > 0 ? `${minutes}:${seconds.toString().padStart(2, '0')}` : `${seconds}s`;
+
             transcriptEmpty.innerHTML = `
-              <div style="text-align: center;">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎙️</div>
-                <div style="font-size: 1.1rem; margin-bottom: 0.5rem;">Recording audio...</div>
-                <div style="font-size: 0.9rem; opacity: 0.7;">${durationSeconds}s recorded • ${(totalSize / 1024).toFixed(0)} KB</div>
-                <div style="font-size: 0.85rem; opacity: 0.6; margin-top: 0.5rem;">Transcription will start when you stop recording</div>
+              <div style="text-align: center; max-width: 320px; margin: 0 auto;">
+                <div class="recording-indicator">
+                  <div class="recording-indicator-dot"></div>
+                </div>
+                <div style="font-size: 0.9375rem; font-weight: 500; margin-bottom: 2.5rem; color: #18181b; letter-spacing: -0.01em;">Recording</div>
+                <div style="display: grid; grid-template-columns: 1fr 1px 1fr; gap: 2rem; margin-bottom: 3rem;">
+                  <div style="text-align: center;">
+                    <div style="font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; margin-bottom: 0.5rem;">Duration</div>
+                    <div style="font-size: 1.5rem; font-weight: 600; color: #18181b; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;">${timeDisplay}</div>
+                  </div>
+                  <div style="width: 1px; background: #e4e4e7;"></div>
+                  <div style="text-align: center;">
+                    <div style="font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; margin-bottom: 0.5rem;">Size</div>
+                    <div style="font-size: 1.5rem; font-weight: 600; color: #18181b; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;">${(totalSize / 1024).toFixed(0)}<span style="font-size: 0.875rem; color: #71717a; margin-left: 0.25rem;">KB</span></div>
+                  </div>
+                </div>
+                <button id="stopRecordingInline" style="display: inline-flex; align-items: center; padding: 0.625rem 1.5rem; background: #18181b; color: #ffffff; border: none; border-radius: 6px; font-size: 0.8125rem; font-weight: 500; cursor: pointer; transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); letter-spacing: -0.01em; margin-bottom: 1rem;">
+                  Stop Recording
+                </button>
+                <div style="font-size: 0.8125rem; color: #a1a1aa; letter-spacing: -0.01em;">Transcription will begin after recording stops</div>
               </div>
             `;
+
+            // Attach event listener to inline stop button
+            const stopBtn = transcriptEmpty.querySelector('#stopRecordingInline');
+            if (stopBtn) {
+              stopBtn.addEventListener('click', () => stopTranscription());
+            }
           }
         }
       };
@@ -2331,20 +2358,36 @@ async function handleTranscriptionComplete() {
 
   // Update UI to show transcription in progress
   if (transcriptionStatus) {
-    transcriptionStatus.textContent = 'Transcribing audio...';
+    transcriptionStatus.innerHTML = 'Transcribing';
   }
   if (transcriptEmpty) {
     transcriptEmpty.innerHTML = `
-      <div style="text-align: center;">
-        <div class="chat-loading">
-          <div class="chat-loading-dot"></div>
-          <div class="chat-loading-dot"></div>
-          <div class="chat-loading-dot"></div>
+      <div style="text-align: center; max-width: 280px; margin: 0 auto;">
+        <div style="width: 32px; height: 32px; margin: 0 auto 2rem; position: relative;">
+          <svg style="animation: spin 1.5s linear infinite;" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" stroke="#18181b" stroke-width="2" stroke-linecap="round" stroke-dasharray="50 50" opacity="0.2"/>
+          </svg>
         </div>
-        <div style="margin-top: 1rem; font-size: 0.9rem;">Transcribing ${audioSizeMB} MB of audio...</div>
-        <div style="margin-top: 0.5rem; font-size: 0.85rem; opacity: 0.7;">This may take a moment</div>
+        <div style="font-size: 0.9375rem; font-weight: 500; margin-bottom: 1rem; color: #18181b; letter-spacing: -0.01em;">Transcribing</div>
+        <div style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.75rem; background: #fafafa; border: 1px solid #e4e4e7; border-radius: 6px; margin-bottom: 1.5rem;">
+          <div style="font-size: 0.8125rem; font-weight: 500; color: #71717a; letter-spacing: -0.01em;">${audioSizeMB} MB</div>
+        </div>
+        <div style="font-size: 0.8125rem; color: #a1a1aa; letter-spacing: -0.01em;">Processing with Gemini Nano</div>
       </div>
     `;
+  }
+
+  // Add spinning animation if not already in CSS
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  `;
+  if (!document.querySelector('style[data-spin-animation]')) {
+    style.setAttribute('data-spin-animation', 'true');
+    document.head.appendChild(style);
   }
 
   try {
@@ -2376,12 +2419,19 @@ async function handleTranscriptionComplete() {
       }
 
       if (transcriptionStatus) {
-        transcriptionStatus.textContent = 'Transcription complete';
+        transcriptionStatus.innerHTML = 'Complete';
       }
 
-      // Show download button
+      // Show download button with animation
       if (downloadBtn) {
         downloadBtn.style.display = 'flex';
+        downloadBtn.style.animation = 'fadeIn 0.3s ease-out';
+      }
+
+      // Show success indicator briefly
+      const transcriptText = document.getElementById('transcriptText');
+      if (transcriptText) {
+        transcriptText.style.animation = 'fadeIn 0.5s ease-out';
       }
 
       // Generate AI summary
