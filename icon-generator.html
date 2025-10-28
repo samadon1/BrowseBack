@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BrowseBack Icon Generator</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 40px;
+      background: #f0f0f0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+    }
+
+    .instructions {
+      max-width: 600px;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .instructions h2 {
+      margin-top: 0;
+      color: #333;
+    }
+
+    .instructions ol {
+      line-height: 1.8;
+    }
+
+    .instructions code {
+      background: #f5f5f5;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Monaco', monospace;
+      font-size: 12px;
+    }
+
+    .icon-container {
+      display: flex;
+      gap: 60px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .icon-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .icon-label {
+      font-size: 14px;
+      color: #666;
+      font-weight: 500;
+    }
+
+    .icon-box {
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Icon 128x128 */
+    #icon128 {
+      width: 128px;
+      height: 128px;
+    }
+
+    /* Icon 48x48 */
+    #icon48 {
+      width: 48px;
+      height: 48px;
+    }
+
+    /* Icon 16x16 */
+    #icon16 {
+      width: 16px;
+      height: 16px;
+    }
+
+    .download-btn {
+      margin-top: 20px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(99, 102, 241, 0.3);
+    }
+
+    .download-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+    }
+
+    canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="instructions">
+    <h2>🎨 BrowseBack Icon Generator</h2>
+    <p><strong>Instructions to save icons:</strong></p>
+    <ol>
+      <li><strong>Method 1 (Easiest):</strong> Click the download buttons below each icon</li>
+      <li><strong>Method 2 (Manual):</strong> Right-click each icon → Save Image As...</li>
+      <li>Save them in the <code>icons/</code> folder as:
+        <ul>
+          <li><code>icon128.png</code></li>
+          <li><code>icon48.png</code></li>
+          <li><code>icon16.png</code></li>
+        </ul>
+      </li>
+    </ol>
+    <p><strong>Design:</strong> Apple-inspired gradient with a brain/memory motif using geometric shapes</p>
+  </div>
+
+  <div class="icon-container">
+    <!-- 128x128 Icon -->
+    <div class="icon-wrapper">
+      <div class="icon-label">128 × 128 pixels</div>
+      <div class="icon-box">
+        <svg id="icon128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <!-- Background with gradient -->
+          <defs>
+            <linearGradient id="bgGradient128" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+              <stop offset="50%" style="stop-color:#764ba2;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="iconGradient128" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#f0f0ff;stop-opacity:0.95" />
+            </linearGradient>
+            <!-- Shadow filter -->
+            <filter id="shadow128" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+              <feOffset dx="0" dy="2" result="offsetblur"/>
+              <feComponentTransfer>
+                <feFuncA type="linear" slope="0.3"/>
+              </feComponentTransfer>
+              <feMerge>
+                <feMergeNode/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+
+          <!-- Rounded square background (Apple style) -->
+          <rect width="128" height="128" rx="28" fill="url(#bgGradient128)"/>
+
+          <!-- Brain/Memory icon - simplified geometric -->
+          <g filter="url(#shadow128)">
+            <!-- Left hemisphere -->
+            <path d="M 40 64 Q 40 45 50 38 Q 56 34 62 38 Q 68 42 68 50 L 68 78 Q 68 86 62 90 Q 56 94 50 90 Q 40 83 40 64 Z"
+                  fill="url(#iconGradient128)" opacity="0.95"/>
+
+            <!-- Right hemisphere -->
+            <path d="M 88 64 Q 88 45 78 38 Q 72 34 66 38 Q 60 42 60 50 L 60 78 Q 60 86 66 90 Q 72 94 78 90 Q 88 83 88 64 Z"
+                  fill="url(#iconGradient128)" opacity="0.95"/>
+
+            <!-- Center connection -->
+            <rect x="60" y="55" width="8" height="18" rx="2" fill="url(#iconGradient128)" opacity="0.9"/>
+
+            <!-- Memory nodes (circles) -->
+            <circle cx="50" cy="50" r="4" fill="white" opacity="0.8"/>
+            <circle cx="50" cy="65" r="4" fill="white" opacity="0.8"/>
+            <circle cx="50" cy="80" r="4" fill="white" opacity="0.8"/>
+            <circle cx="78" cy="50" r="4" fill="white" opacity="0.8"/>
+            <circle cx="78" cy="65" r="4" fill="white" opacity="0.8"/>
+            <circle cx="78" cy="80" r="4" fill="white" opacity="0.8"/>
+
+            <!-- Search magnifier in bottom right -->
+            <circle cx="95" cy="95" r="8" stroke="white" stroke-width="2.5" fill="none" opacity="0.9"/>
+            <line x1="100" y1="100" x2="106" y2="106" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+          </g>
+        </svg>
+      </div>
+      <button class="download-btn" onclick="downloadIcon('icon128', 'icon128.png')">Download icon128.png</button>
+    </div>
+
+    <!-- 48x48 Icon -->
+    <div class="icon-wrapper">
+      <div class="icon-label">48 × 48 pixels</div>
+      <div class="icon-box">
+        <svg id="icon48" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bgGradient48" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+              <stop offset="50%" style="stop-color:#764ba2;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="iconGradient48" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#f0f0ff;stop-opacity:0.95" />
+            </linearGradient>
+          </defs>
+
+          <rect width="128" height="128" rx="28" fill="url(#bgGradient48)"/>
+
+          <g>
+            <path d="M 40 64 Q 40 45 50 38 Q 56 34 62 38 Q 68 42 68 50 L 68 78 Q 68 86 62 90 Q 56 94 50 90 Q 40 83 40 64 Z"
+                  fill="url(#iconGradient48)" opacity="0.95"/>
+            <path d="M 88 64 Q 88 45 78 38 Q 72 34 66 38 Q 60 42 60 50 L 60 78 Q 60 86 66 90 Q 72 94 78 90 Q 88 83 88 64 Z"
+                  fill="url(#iconGradient48)" opacity="0.95"/>
+            <rect x="60" y="55" width="8" height="18" rx="2" fill="url(#iconGradient48)" opacity="0.9"/>
+            <circle cx="50" cy="55" r="4" fill="white" opacity="0.8"/>
+            <circle cx="50" cy="73" r="4" fill="white" opacity="0.8"/>
+            <circle cx="78" cy="55" r="4" fill="white" opacity="0.8"/>
+            <circle cx="78" cy="73" r="4" fill="white" opacity="0.8"/>
+            <circle cx="95" cy="95" r="8" stroke="white" stroke-width="2.5" fill="none" opacity="0.9"/>
+            <line x1="100" y1="100" x2="106" y2="106" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+          </g>
+        </svg>
+      </div>
+      <button class="download-btn" onclick="downloadIcon('icon48', 'icon48.png')">Download icon48.png</button>
+    </div>
+
+    <!-- 16x16 Icon (simplified) -->
+    <div class="icon-wrapper">
+      <div class="icon-label">16 × 16 pixels</div>
+      <div class="icon-box">
+        <svg id="icon16" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bgGradient16" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+              <stop offset="50%" style="stop-color:#764ba2;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+            </linearGradient>
+          </defs>
+
+          <rect width="128" height="128" rx="28" fill="url(#bgGradient16)"/>
+
+          <!-- Simplified for 16px - just a brain silhouette -->
+          <g>
+            <ellipse cx="50" cy="64" rx="15" ry="25" fill="white" opacity="0.9"/>
+            <ellipse cx="78" cy="64" rx="15" ry="25" fill="white" opacity="0.9"/>
+            <circle cx="95" cy="95" r="10" stroke="white" stroke-width="3" fill="none" opacity="0.9"/>
+            <line x1="102" y1="102" x2="110" y2="110" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+          </g>
+        </svg>
+      </div>
+      <button class="download-btn" onclick="downloadIcon('icon16', 'icon16.png')">Download icon16.png</button>
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <script>
+    function downloadIcon(svgId, filename) {
+      const svg = document.getElementById(svgId);
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Get the size from the ID (icon128 -> 128, icon48 -> 48, etc.)
+      const size = parseInt(svgId.replace('icon', ''));
+      canvas.width = size;
+      canvas.height = size;
+
+      const img = new Image();
+      const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+
+      img.onload = function() {
+        // Enable high-quality rendering
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // Draw the image
+        ctx.drawImage(img, 0, 0, size, size);
+
+        // Convert to PNG and download
+        canvas.toBlob(function(blob) {
+          const link = document.createElement('a');
+          link.download = filename;
+          link.href = URL.createObjectURL(blob);
+          link.click();
+          URL.revokeObjectURL(url);
+        }, 'image/png', 1.0);
+      };
+
+      img.src = url;
+    }
+  </script>
+</body>
+</html>

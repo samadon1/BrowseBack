@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BrowseBack AI Diagnostics</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 { color: #333; }
+    .test {
+      background: #f5f5f5;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 8px;
+      border-left: 4px solid #ccc;
+    }
+    .test.pass {
+      background: #e8f5e9;
+      border-left-color: #4caf50;
+    }
+    .test.fail {
+      background: #ffebee;
+      border-left-color: #f44336;
+    }
+    .test.warning {
+      background: #fff3e0;
+      border-left-color: #ff9800;
+    }
+    code {
+      background: #fff;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    button {
+      background: #1976d2;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #1565c0;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .log {
+      background: #000;
+      color: #0f0;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      margin: 20px 0;
+    }
+    .section {
+      margin: 30px 0;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <h1>🔬 BrowseBack AI Diagnostics</h1>
+  <p>This tool will help diagnose why the AI model download is failing.</p>
+
+  <div class="section">
+    <h2>Step 1: Environment Check</h2>
+    <div id="envTests"></div>
+  </div>
+
+  <div class="section">
+    <h2>Step 2: API Availability</h2>
+    <div id="apiTests"></div>
+    <button id="checkApiBtn">Check API Availability</button>
+  </div>
+
+  <div class="section">
+    <h2>Step 3: Try Download</h2>
+    <div id="downloadTests"></div>
+    <button id="tryDownloadBtn" disabled>Try Model Download</button>
+    <button id="trySimpleCreateBtn" disabled>Try Simple Create (No Monitor)</button>
+  </div>
+
+  <div class="section">
+    <h2>Debug Log</h2>
+    <div id="log" class="log"></div>
+    <button id="clearLogBtn">Clear Log</button>
+  </div>
+
+  <script>
+    const envTestsDiv = document.getElementById('envTests');
+    const apiTestsDiv = document.getElementById('apiTests');
+    const downloadTestsDiv = document.getElementById('downloadTests');
+    const logDiv = document.getElementById('log');
+    const checkApiBtn = document.getElementById('checkApiBtn');
+    const tryDownloadBtn = document.getElementById('tryDownloadBtn');
+    const trySimpleCreateBtn = document.getElementById('trySimpleCreateBtn');
+    const clearLogBtn = document.getElementById('clearLogBtn');
+
+    let session = null;
+
+    function log(message, level = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const prefix = level === 'error' ? '❌' : level === 'success' ? '✅' : level === 'warning' ? '⚠️' : 'ℹ️';
+      logDiv.innerHTML += `[${timestamp}] ${prefix} ${message}\n`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    function addTest(container, name, status, details) {
+      const div = document.createElement('div');
+      div.className = `test ${status}`;
+      div.innerHTML = `
+        <strong>${status === 'pass' ? '✅' : status === 'fail' ? '❌' : '⚠️'} ${name}</strong>
+        ${details ? `<br><small>${details}</small>` : ''}
+      `;
+      container.appendChild(div);
+    }
+
+    // Environment checks
+    log('Starting environment diagnostics...', 'info');
+
+    addTest(envTestsDiv, 'Browser', 'pass', `Chrome ${navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] || 'Unknown'}`);
+    addTest(envTestsDiv, 'Platform', 'pass', navigator.platform);
+    addTest(envTestsDiv, 'Language', 'pass', navigator.language);
+
+    // Check LanguageModel API exists
+    if (typeof window.LanguageModel !== 'undefined') {
+      addTest(envTestsDiv, 'LanguageModel API', 'pass', 'window.LanguageModel exists');
+      log('✅ LanguageModel API found', 'success');
+    } else {
+      addTest(envTestsDiv, 'LanguageModel API', 'fail', 'window.LanguageModel is undefined. Enable chrome://flags/#prompt-api-for-gemini-nano');
+      log('❌ LanguageModel API NOT found', 'error');
+    }
+
+    // Check API button
+    checkApiBtn.addEventListener('click', async () => {
+      checkApiBtn.disabled = true;
+      log('Checking API availability...', 'info');
+
+      try {
+        if (typeof window.LanguageModel === 'undefined') {
+          throw new Error('LanguageModel API not available');
+        }
+
+        // Check with language specification
+        log('Calling LanguageModel.availability() with language specs...', 'info');
+        const availability = await window.LanguageModel.availability({
+          expectedInputs: [{ type: 'text', languages: ['en'] }],
+          expectedOutputs: [{ type: 'text', languages: ['en'] }]
+        });
+
+        log(`Availability status: ${availability}`, 'success');
+        addTest(apiTestsDiv, 'Availability Check', 'pass', `Status: ${availability}`);
+
+        if (availability === 'available') {
+          addTest(apiTestsDiv, 'Model Status', 'pass', 'Model is already downloaded and ready!');
+          log('✅ Model is ready to use!', 'success');
+          tryDownloadBtn.disabled = false;
+          trySimpleCreateBtn.disabled = false;
+        } else if (availability === 'downloadable') {
+          addTest(apiTestsDiv, 'Model Status', 'warning', 'Model needs to be downloaded');
+          log('⚠️ Model is downloadable but not yet downloaded', 'warning');
+          tryDownloadBtn.disabled = false;
+          trySimpleCreateBtn.disabled = false;
+        } else if (availability === 'downloading') {
+          addTest(apiTestsDiv, 'Model Status', 'warning', 'Model is currently downloading');
+          log('⚠️ Model download already in progress', 'warning');
+        } else {
+          addTest(apiTestsDiv, 'Model Status', 'fail', `Unavailable: ${availability}`);
+          log(`❌ Model unavailable: ${availability}`, 'error');
+        }
+
+      } catch (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+        addTest(apiTestsDiv, 'Availability Check', 'fail', error.message);
+        console.error('Full error:', error);
+      } finally {
+        checkApiBtn.disabled = false;
+      }
+    });
+
+    // Try download with monitor
+    tryDownloadBtn.addEventListener('click', async () => {
+      tryDownloadBtn.disabled = true;
+      log('Attempting model download WITH monitor callback...', 'info');
+
+      try {
+        log('Creating session with expectedInputs/expectedOutputs and monitor...', 'info');
+
+        const session = await window.LanguageModel.create({
+          expectedInputs: [{ type: 'text', languages: ['en'] }],
+          expectedOutputs: [{ type: 'text', languages: ['en'] }],
+          monitor(m) {
+            log('Monitor callback received!', 'success');
+            m.addEventListener('downloadprogress', (e) => {
+              const percent = Math.round(e.loaded * 100);
+              log(`Download progress: ${percent}%`, 'info');
+              addTest(downloadTestsDiv, 'Download Progress', 'pass', `${percent}% complete`);
+            });
+          }
+        });
+
+        log('✅ Session created successfully!', 'success');
+        addTest(downloadTestsDiv, 'Create with Monitor', 'pass', 'Session created successfully');
+
+        // Try a simple prompt
+        log('Testing session with a simple prompt...', 'info');
+        const result = await session.prompt('Say hello');
+        log(`Response: ${result}`, 'success');
+        addTest(downloadTestsDiv, 'Test Prompt', 'pass', `Response: ${result}`);
+
+      } catch (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+        log(`Error name: ${error.name}`, 'error');
+        log(`Error toString: ${error.toString()}`, 'error');
+        addTest(downloadTestsDiv, 'Create with Monitor', 'fail', error.message);
+        console.error('Full error object:', error);
+
+        if (error.message.includes('space')) {
+          log('💡 This might not actually be a space issue. Possible causes:', 'warning');
+          log('   1. Chrome flag not properly enabled', 'warning');
+          log('   2. Model not available in your region', 'warning');
+          log('   3. Chrome version incompatibility', 'warning');
+          log('   4. Need to restart Chrome after enabling flag', 'warning');
+        }
+      } finally {
+        tryDownloadBtn.disabled = false;
+      }
+    });
+
+    // Try simple create without monitor
+    trySimpleCreateBtn.addEventListener('click', async () => {
+      trySimpleCreateBtn.disabled = true;
+      log('Attempting model create WITHOUT monitor callback...', 'info');
+
+      try {
+        log('Creating session with just expectedInputs/expectedOutputs (no monitor)...', 'info');
+
+        const session = await window.LanguageModel.create({
+          expectedInputs: [{ type: 'text', languages: ['en'] }],
+          expectedOutputs: [{ type: 'text', languages: ['en'] }]
+        });
+
+        log('✅ Session created successfully!', 'success');
+        addTest(downloadTestsDiv, 'Create without Monitor', 'pass', 'Session created successfully');
+
+        // Try a simple prompt
+        log('Testing session with a simple prompt...', 'info');
+        const result = await session.prompt('Say hello');
+        log(`Response: ${result}`, 'success');
+        addTest(downloadTestsDiv, 'Test Prompt', 'pass', `Response: ${result}`);
+
+      } catch (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+        addTest(downloadTestsDiv, 'Create without Monitor', 'fail', error.message);
+        console.error('Full error object:', error);
+      } finally {
+        trySimpleCreateBtn.disabled = false;
+      }
+    });
+
+    clearLogBtn.addEventListener('click', () => {
+      logDiv.innerHTML = '';
+      log('Log cleared', 'info');
+    });
+
+    log('Diagnostics ready. Click "Check API Availability" to begin.', 'success');
+  </script>
+</body>
+</html>

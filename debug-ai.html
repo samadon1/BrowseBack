@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BrowseBack - AI Debug Tool</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    h1 {
+      color: #6366f1;
+    }
+    button {
+      background: #6366f1;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #4f46e5;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    pre {
+      background: #1f2937;
+      color: #f3f4f6;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .status {
+      padding: 15px;
+      border-radius: 6px;
+      margin: 10px 0;
+      font-weight: 600;
+    }
+    .success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 2px solid #10b981;
+    }
+    .error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 2px solid #ef4444;
+    }
+    .info {
+      background: #dbeafe;
+      color: #1e40af;
+      border: 2px solid #3b82f6;
+    }
+    .warning {
+      background: #fef3c7;
+      color: #92400e;
+      border: 2px solid #f59e0b;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔍 BrowseBack AI Debugger</h1>
+    <p>Use this tool to diagnose why AI isn't working.</p>
+  </div>
+
+  <div class="card">
+    <h2>Step 1: Check API Availability</h2>
+    <button onclick="checkAPI()">Check if API Exists</button>
+    <div id="apiResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>Step 2: Check Availability Status</h2>
+    <button onclick="checkAvailability()">Check Availability</button>
+    <div id="availResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>Step 3: Check Capabilities</h2>
+    <button onclick="checkCapabilities()">Check Capabilities</button>
+    <div id="capResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>Step 4: Try Creating Session</h2>
+    <button onclick="createSession()">Create AI Session</button>
+    <div id="sessionResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>Step 5: Test AI Response</h2>
+    <button onclick="testAI()" id="testBtn" disabled>Test AI with Question</button>
+    <div id="testResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>Quick Fix Links</h2>
+    <a href="chrome://flags/#prompt-api-for-gemini-nano" target="_blank">
+      <button>Open Chrome Flags</button>
+    </a>
+    <a href="chrome://components" target="_blank">
+      <button>Open Components</button>
+    </a>
+    <a href="chrome://version" target="_blank">
+      <button>Check Chrome Version</button>
+    </a>
+  </div>
+
+  <script>
+    let aiSession = null;
+
+    function showResult(elementId, message, type) {
+      const element = document.getElementById(elementId);
+      element.innerHTML = `<div class="status ${type}">${message}</div>`;
+    }
+
+    async function checkAPI() {
+      const exists = !!window.ai?.languageModel;
+
+      if (exists) {
+        showResult('apiResult', `✅ SUCCESS: window.ai.languageModel exists!<br><br>The Prompt API is loaded in your browser.<br><br>Next: Check availability status.`, 'success');
+      } else {
+        showResult('apiResult', `❌ FAILED: window.ai.languageModel does NOT exist<br><br>
+<strong>Solution:</strong><br>
+1. Open <a href="chrome://flags/#prompt-api-for-gemini-nano" target="_blank">chrome://flags/#prompt-api-for-gemini-nano</a><br>
+2. Set to "Enabled"<br>
+3. Click "Relaunch"<br>
+4. Come back to this page`, 'error');
+      }
+    }
+
+    async function checkAvailability() {
+      try {
+        if (!window.ai?.languageModel) {
+          showResult('availResult', '❌ API not available. Run Step 1 first.', 'error');
+          return;
+        }
+
+        const availability = await window.ai.languageModel.availability();
+
+        let message = `<strong>Availability Status:</strong> ${availability}<br><br>`;
+
+        if (availability === 'readily') {
+          message += '✅ AI model is READY!<br><br>You can use AI answers now.<br><br>Next: Create session to test.';
+          showResult('availResult', message, 'success');
+        } else if (availability === 'after-download') {
+          message += '⏬ AI model needs to be DOWNLOADED<br><br>The model is not on your computer yet.<br><br><strong>What to do:</strong><br>1. Go to <a href="chrome://components" target="_blank">chrome://components</a><br>2. Find "Optimization Guide On Device Model"<br>3. Click "Check for update"<br>4. Wait 5-10 minutes for download<br>5. Come back and run this check again';
+          showResult('availResult', message, 'warning');
+        } else if (availability === 'no' || availability === 'unavailable') {
+          message += '❌ AI model is NOT AVAILABLE on this device<br><br><strong>Possible reasons:</strong><br>• Not enough disk space (need 22GB free)<br>• Not enough RAM (need 16GB) or GPU (need 4GB VRAM)<br>• Wrong Chrome version (need Dev 130+ or Canary)<br>• Operating system not supported<br><br><strong>Check:</strong><br>1. Chrome version at <a href="chrome://version" target="_blank">chrome://version</a><br>2. Free space (need 22GB+)<br>3. System requirements';
+          showResult('availResult', message, 'error');
+        } else {
+          message += `⚠️ Unknown status: ${availability}<br><br>This is unusual. Try:<br>1. Restart Chrome<br>2. Update to latest Chrome Dev/Canary<br>3. Check <a href="chrome://components" target="_blank">chrome://components</a>`;
+          showResult('availResult', message, 'warning');
+        }
+
+      } catch (error) {
+        showResult('availResult', `❌ ERROR: ${error.message}<br><br>This usually means the API isn't enabled.<br><br>Go to Step 1 and enable the flag.`, 'error');
+      }
+    }
+
+    async function checkCapabilities() {
+      try {
+        if (!window.ai?.languageModel) {
+          showResult('capResult', '❌ API not available. Run Step 1 first.', 'error');
+          return;
+        }
+
+        const capabilities = await window.ai.languageModel.capabilities();
+
+        showResult('capResult', `<strong>Capabilities:</strong><br><br><pre>${JSON.stringify(capabilities, null, 2)}</pre>`, 'info');
+
+      } catch (error) {
+        showResult('capResult', `❌ ERROR: ${error.message}`, 'error');
+      }
+    }
+
+    async function createSession() {
+      try {
+        if (!window.ai?.languageModel) {
+          showResult('sessionResult', '❌ API not available. Run Step 1 first.', 'error');
+          return;
+        }
+
+        showResult('sessionResult', '⏳ Creating AI session... (may trigger download)', 'info');
+
+        aiSession = await window.ai.languageModel.create({
+          monitor(m) {
+            m.addEventListener('downloadprogress', (e) => {
+              const percent = Math.round(e.loaded * 100);
+              showResult('sessionResult', `⏬ Downloading AI model: ${percent}%<br><br>This will take 5-10 minutes.<br>Monitor at <a href="chrome://components" target="_blank">chrome://components</a>`, 'warning');
+            });
+          }
+        });
+
+        showResult('sessionResult', `✅ AI Session Created!<br><br>Session object:<br><pre>${JSON.stringify(aiSession, null, 2)}</pre><br><br>Next: Test AI with a question`, 'success');
+
+        document.getElementById('testBtn').disabled = false;
+
+      } catch (error) {
+        showResult('sessionResult', `❌ Failed to create session:<br><br><strong>Error:</strong> ${error.message}<br><br><strong>Common causes:</strong><br>• Model not downloaded yet (check chrome://components)<br>• Flag not enabled (check chrome://flags)<br>• Not enough system resources`, 'error');
+      }
+    }
+
+    async function testAI() {
+      try {
+        if (!aiSession) {
+          showResult('testResult', '❌ No session. Run Step 4 first.', 'error');
+          return;
+        }
+
+        showResult('testResult', '⏳ Asking AI a question...', 'info');
+
+        const answer = await aiSession.prompt('Say hello in a friendly way!');
+
+        showResult('testResult', `✅ AI WORKS!<br><br><strong>Question:</strong> "Say hello in a friendly way!"<br><br><strong>Answer:</strong><br><blockquote>${answer}</blockquote><br><br>🎉 Your AI is working! BrowseBack should work now.`, 'success');
+
+      } catch (error) {
+        showResult('testResult', `❌ AI failed to respond:<br><br>${error.message}`, 'error');
+      }
+    }
+  </script>
+</body>
+</html>

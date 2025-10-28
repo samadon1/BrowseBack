@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BrowseBack</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- AI Setup Splash Screen -->
+  <div id="aiSplashScreen" class="splash-screen">
+    <div class="splash-content">
+      <div class="splash-icon">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+          <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2" opacity="0.2"/>
+          <circle cx="32" cy="32" r="20" stroke="currentColor" stroke-width="2" opacity="0.4"/>
+          <circle cx="32" cy="32" r="12" fill="currentColor" opacity="0.6"/>
+        </svg>
+      </div>
+
+      <h1 class="splash-title">BrowseBack</h1>
+      <p class="splash-subtitle">Checking AI capabilities...</p>
+
+      <div class="splash-status">
+        <div class="status-item">
+          <div class="status-icon" id="splashCheckAPI">
+            <div class="spinner-small"></div>
+          </div>
+          <span id="splashAPIText">Checking API availability</span>
+        </div>
+
+        <div class="status-item" id="splashModelStatus" style="display: none;">
+          <div class="status-icon" id="splashCheckModel">
+            <div class="spinner-small"></div>
+          </div>
+          <span id="splashModelText">Checking model status</span>
+        </div>
+
+        <div class="status-item" id="splashDownloadStatus" style="display: none;">
+          <div class="status-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M10 3v10m0 0l-3-3m3 3l3-3M3 17h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="download-info">
+            <span id="splashDownloadText">Downloading AI model...</span>
+            <div class="progress-bar">
+              <div class="progress-fill" id="splashProgress"></div>
+            </div>
+            <span class="progress-text" id="splashProgressText">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="splash-actions" id="splashActions" style="display: none;">
+        <button id="splashContinue" class="splash-btn primary">Continue without AI</button>
+        <button id="splashSetup" class="splash-btn secondary">Setup Guide</button>
+      </div>
+
+      <div class="splash-note">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="4" y="6" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M6 6V4C6 2.89543 6.89543 2 8 2C9.10457 2 10 2.89543 10 4V6" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <span>All processing happens locally on your device</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="app" id="mainApp" style="display: none;">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="10" cy="10" r="3" fill="currentColor"/>
+            </svg>
+          </div>
+          <h1 class="brand-name">BrowseBack</h1>
+        </div>
+        <div class="header-meta">
+          <span class="status-badge">
+            <span class="status-dot"></span>
+            Active
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Search Section -->
+    <div class="search-container">
+      <div class="search-wrapper">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <input
+          type="text"
+          id="searchInput"
+          class="search-input"
+          placeholder="Search your browsing history..."
+          autocomplete="off"
+        />
+        <button id="searchBtn" class="search-action-btn" title="Search" style="display: none;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M11 11L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button id="askAiBtn" class="search-action-btn" title="Ask AI" disabled>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 2L10 6L14 8L10 10L8 14L6 10L2 8L6 6L8 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Mode Toggles -->
+      <div class="mode-toggles">
+        <button class="mode-chip suggestion-chip" data-mode="recent" data-query="">
+          <span class="mode-label">Recent</span>
+        </button>
+        <button class="mode-chip suggestion-chip" data-mode="today" data-query="today">
+          <span class="mode-label">Today</span>
+        </button>
+        <button id="semanticModeChip" class="mode-chip suggestion-chip" title="Semantic search">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/>
+            <circle cx="6" cy="6" r="2" fill="currentColor"/>
+          </svg>
+          <span class="mode-label">Semantic</span>
+        </button>
+        <button id="aiModeChip" class="mode-chip suggestion-chip ai-mode" disabled>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1L7.5 4.5L11 6L7.5 7.5L6 11L4.5 7.5L1 6L4.5 4.5L6 1Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          </svg>
+          <span class="mode-label">AI</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="captureCount">0</div>
+        <div class="stat-label">Captures</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="storageUsed">0 MB</div>
+        <div class="stat-label">Storage</div>
+      </div>
+      <div class="stat-card privacy-card">
+        <div class="stat-value">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="4" y="6" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M6 6V4C6 2.89543 6.89543 2 8 2C9.10457 2 10 2.89543 10 4V6" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <div class="stat-label">100% Local</div>
+      </div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="content-area">
+      <!-- Loading State -->
+      <div id="loadingState" class="state-container" style="display: none;">
+        <div class="spinner-ring"></div>
+        <p class="state-text">Searching...</p>
+      </div>
+
+      <!-- AI Loading State -->
+      <div id="aiLoadingState" class="state-container" style="display: none;">
+        <div class="spinner-pulse"></div>
+        <p class="state-text">AI is thinking...</p>
+      </div>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="state-container">
+        <div class="empty-illustration">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2" opacity="0.2"/>
+            <circle cx="24" cy="24" r="12" stroke="currentColor" stroke-width="2" opacity="0.4"/>
+            <circle cx="24" cy="24" r="4" fill="currentColor" opacity="0.6"/>
+          </svg>
+        </div>
+        <h3 class="state-title">Start browsing to build your memory</h3>
+        <p class="state-description">BrowseBack captures your tabs automatically every 10 seconds.</p>
+        <div class="state-badge">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <rect x="3" y="5" width="6" height="5" rx="0.75" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M5 5V3.5C5 2.67157 5.67157 2 6.5 2C7.32843 2 8 2.67157 8 3.5V5" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+          <span>Private & Secure</span>
+        </div>
+      </div>
+
+      <!-- AI Answer Display -->
+      <div id="aiAnswerContainer" class="ai-answer-card" style="display: none;">
+        <div class="ai-header">
+          <div class="ai-title-row">
+            <div class="ai-icon-badge">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 1L9 5L13 7L9 9L7 13L5 9L1 7L5 5L7 1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h3 class="ai-title">AI Answer</h3>
+          </div>
+          <button id="closeAiAnswer" class="close-btn">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div id="aiAnswerText" class="ai-answer-content"></div>
+        <div class="ai-footer">
+          <span class="ai-powered-badge">Powered by Chrome AI</span>
+        </div>
+        <div class="ai-sources">
+          <div class="sources-header">Sources</div>
+          <div id="aiSourcesList" class="sources-list"></div>
+        </div>
+      </div>
+
+      <!-- Results Grid -->
+      <div id="resultsContainer" class="results-grid" style="display: none;">
+        <!-- Results will be dynamically inserted here -->
+      </div>
+
+      <!-- No Results State -->
+      <div id="noResultsState" class="state-container" style="display: none;">
+        <div class="empty-illustration">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <circle cx="20" cy="20" r="14" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+            <path d="M30 30L40 40" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
+          </svg>
+        </div>
+        <h3 class="state-title">No results found</h3>
+        <p class="state-description">Try a different search term or browse more to build your memory.</p>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions-bar">
+      <button id="captureNowBtn" class="action-btn">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="2" y="4" width="10" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/>
+          <circle cx="7" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M5 2H9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+        <span>Capture Now</span>
+      </button>
+      <button id="settingsBtn" class="action-btn">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M7 1V3M7 11V13M13 7H11M3 7H1M11.5 11.5L10 10M4 4L2.5 2.5M11.5 2.5L10 4M4 10L2.5 11.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+        <span>Settings</span>
+      </button>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settingsPanel" class="settings-overlay" style="display: none;">
+      <div class="settings-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Settings</h2>
+          <button id="closeSettingsBtn" class="close-btn">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M3 3L13 13M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="panel-content">
+          <div class="setting-section">
+            <label class="setting-label" for="captureInterval">Capture Interval</label>
+            <select id="captureInterval" class="setting-select">
+              <option value="5000">Every 5 seconds</option>
+              <option value="10000" selected>Every 10 seconds</option>
+              <option value="30000">Every 30 seconds</option>
+              <option value="60000">Every 1 minute</option>
+            </select>
+          </div>
+
+          <div class="setting-section">
+            <label class="setting-label" for="retentionDays">Keep History For</label>
+            <select id="retentionDays" class="setting-select">
+              <option value="3">3 days</option>
+              <option value="7" selected>7 days</option>
+              <option value="14">14 days</option>
+              <option value="30">30 days</option>
+              <option value="365">1 year</option>
+            </select>
+          </div>
+
+          <div class="setting-section">
+            <div class="section-title">Privacy & Data</div>
+            <div class="info-list">
+              <div class="info-item">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M5 8L7 10L11 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>All data stored locally on your device</span>
+              </div>
+              <div class="info-item">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M5 8L7 10L11 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>No cloud sync or external servers</span>
+              </div>
+              <div class="info-item">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M5 8L7 10L11 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>You own 100% of your data</span>
+              </div>
+              <div class="info-item">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M5 8L7 10L11 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Works completely offline</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-section danger-section">
+            <div class="section-title">Danger Zone</div>
+            <button id="deleteAllBtn" class="danger-btn">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 4H12M5 4V3C5 2.44772 5.44772 2 6 2H8C8.55228 2 9 2.44772 9 3V4M3 4L4 11C4 11.5523 4.44772 12 5 12H9C9.55228 12 10 11.5523 10 11L11 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+              </svg>
+              <span>Delete All Captures</span>
+            </button>
+            <p class="danger-note">This action cannot be undone</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

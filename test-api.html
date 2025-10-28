@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Quick API Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+    .test { margin: 20px 0; padding: 15px; background: #2d2d2d; border-radius: 5px; }
+    .success { border-left: 4px solid #4ec9b0; }
+    .error { border-left: 4px solid #f48771; }
+    button { background: #0e639c; color: white; border: none; padding: 10px 20px; cursor: pointer; margin: 5px; }
+    button:hover { background: #1177bb; }
+  </style>
+</head>
+<body>
+  <h1>Chrome AI API Test</h1>
+  <button onclick="runTests()">Run All Tests</button>
+
+  <div id="results"></div>
+
+  <script>
+    async function runTests() {
+      const results = document.getElementById('results');
+      results.innerHTML = '';
+
+      // Test 1: Check window.ai.languageModel
+      addResult('Test 1: window.ai.languageModel',
+        !!window.ai?.languageModel,
+        window.ai?.languageModel ? 'EXISTS ✓' : 'NOT FOUND ✗');
+
+      // Test 2: Check window.LanguageModel
+      addResult('Test 2: window.LanguageModel',
+        typeof window.LanguageModel !== 'undefined',
+        typeof window.LanguageModel !== 'undefined' ? 'EXISTS ✓' : 'NOT FOUND ✗');
+
+      // Test 3: Check window.ai
+      addResult('Test 3: window.ai',
+        !!window.ai,
+        window.ai ? `EXISTS (${JSON.stringify(Object.keys(window.ai))})` : 'NOT FOUND ✗');
+
+      // Test 4: Check all window properties with 'ai' or 'language'
+      const aiProps = Object.keys(window).filter(k =>
+        k.toLowerCase().includes('ai') || k.toLowerCase().includes('language')
+      );
+      addResult('Test 4: Search window for AI-related properties',
+        aiProps.length > 0,
+        aiProps.length > 0 ? aiProps.join(', ') : 'NONE FOUND');
+
+      // Test 5: Try to check availability
+      try {
+        let availability;
+        if (window.ai?.languageModel) {
+          availability = await window.ai.languageModel.availability();
+          addResult('Test 5: Availability (window.ai.languageModel)', true, availability);
+        } else if (typeof window.LanguageModel !== 'undefined') {
+          availability = await window.LanguageModel.availability();
+          addResult('Test 5: Availability (window.LanguageModel)', true, availability);
+        } else {
+          addResult('Test 5: Availability', false, 'NO API FOUND');
+        }
+      } catch (e) {
+        addResult('Test 5: Availability', false, `ERROR: ${e.message}`);
+      }
+
+      // Test 6: Chrome version
+      addResult('Test 6: User Agent', true, navigator.userAgent);
+    }
+
+    function addResult(test, success, details) {
+      const div = document.createElement('div');
+      div.className = 'test ' + (success ? 'success' : 'error');
+      div.innerHTML = `<strong>${test}</strong><br>${details}`;
+      document.getElementById('results').appendChild(div);
+    }
+
+    // Auto-run on load
+    setTimeout(runTests, 500);
+  </script>
+</body>
+</html>
