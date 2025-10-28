@@ -568,13 +568,29 @@ async function loadBrowseMode() {
   showState('loading');
 
   try {
+    // Load screenshots from background script
     const response = await chrome.runtime.sendMessage({
       action: 'search',
       query: ''
     });
 
-    if (response.results && response.results.length > 0) {
-      currentResults = response.results;
+    let allItems = response.results || [];
+
+    // Load transcripts from storage
+    const storage = await chrome.storage.local.get(null);
+    const transcripts = Object.keys(storage)
+      .filter(key => key.startsWith('transcript_'))
+      .map(key => ({
+        ...storage[key],
+        type: 'transcript',
+        id: storage[key].id || key.replace('transcript_', '')
+      }));
+
+    // Combine and sort by timestamp
+    allItems = [...allItems, ...transcripts].sort((a, b) => b.timestamp - a.timestamp);
+
+    if (allItems.length > 0) {
+      currentResults = allItems;
       displayTimelineView(currentResults); // Use timeline view for browse
     } else {
       showState('empty');
@@ -592,13 +608,29 @@ async function loadSearchMode() {
   showState('loading');
 
   try {
+    // Load screenshots from background script
     const response = await chrome.runtime.sendMessage({
       action: 'search',
       query: ''
     });
 
-    if (response.results && response.results.length > 0) {
-      currentResults = response.results;
+    let allItems = response.results || [];
+
+    // Load transcripts from storage
+    const storage = await chrome.storage.local.get(null);
+    const transcripts = Object.keys(storage)
+      .filter(key => key.startsWith('transcript_'))
+      .map(key => ({
+        ...storage[key],
+        type: 'transcript',
+        id: storage[key].id || key.replace('transcript_', '')
+      }));
+
+    // Combine and sort by timestamp
+    allItems = [...allItems, ...transcripts].sort((a, b) => b.timestamp - a.timestamp);
+
+    if (allItems.length > 0) {
+      currentResults = allItems;
       displayResults(currentResults);
     } else {
       showState('empty');
@@ -848,7 +880,10 @@ function displayTimelineViewPaginated(isInitialLoad = false) {
     let currentGroup = null;
 
     resultsForDate.forEach((result, index) => {
-      const domain = getDomainFromUrl(result.url);
+      // Handle transcripts differently - they don't have URLs
+      const domain = result.type === 'transcript'
+        ? 'Transcripts'  // Group all transcripts together
+        : getDomainFromUrl(result.url || '');
 
       if (!currentGroup || currentGroup.domain !== domain) {
         // Start new group
@@ -929,6 +964,11 @@ function createTimelineGroup(group) {
 
   icon.innerHTML = `<img src="${faviconUrl}" alt="${domain}" onerror="this.style.display='none'; this.parentElement.innerHTML='<svg width=\\'16\\' height=\\'16\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'2\\'><circle cx=\\'12\\' cy=\\'12\\' r=\\'10\\'/><line x1=\\'2\\' y1=\\'12\\' x2=\\'22\\' y2=\\'12\\'/><path d=\\'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\\'/></svg>';" style="width: 16px; height: 16px; border-radius: 2px;">`;
 
+  // Override icon for transcript groups
+  if (domain === 'Transcripts') {
+    icon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="3" width="16" height="18" rx="2" stroke="#3b82f6" stroke-width="1.5" fill="white"/><path d="M8 7h8M8 11h6M8 15h4" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/><circle cx="16" cy="6" r="2" fill="#3b82f6" opacity="0.2"/><path d="M15 6l1 1" stroke="#3b82f6" stroke-width="1" stroke-linecap="round"/></svg>`;
+  }
+
   container.appendChild(icon);
 
   // Create wrapper for items
@@ -970,21 +1010,56 @@ function createTimelineItem(result, isFirstInGroup = false, isLastInGroup = fals
   const content = document.createElement('div');
   content.className = 'timeline-content';
 
-  const thumbnail = document.createElement('img');
+  const thumbnail = document.createElement('div');
   thumbnail.className = 'timeline-thumbnail';
-  thumbnail.src = result.screenshot || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
-  thumbnail.alt = result.title;
+  
+  // Handle different item types
+  if (result.type === 'transcript') {
+    thumbnail.innerHTML = `
+      <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="24" height="24" fill="#f8fafc"/>
+        <rect x="4" y="3" width="16" height="18" rx="2" stroke="#3b82f6" stroke-width="1.5" fill="white"/>
+        <path d="M8 7h8M8 11h6M8 15h4" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="16" cy="6" r="2" fill="#3b82f6" opacity="0.2"/>
+        <path d="M15 6l1 1" stroke="#3b82f6" stroke-width="1" stroke-linecap="round"/>
+      </svg>
+    `;
+    thumbnail.style.background = 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)';
+    thumbnail.style.display = 'flex';
+    thumbnail.style.alignItems = 'center';
+    thumbnail.style.justifyContent = 'center';
+  } else {
+    const img = document.createElement('img');
+    img.src = result.screenshot || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
+    img.alt = result.title || 'Screenshot';
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'cover';
+    thumbnail.appendChild(img);
+  }
 
   const details = document.createElement('div');
   details.className = 'timeline-details';
 
   const title = document.createElement('div');
   title.className = 'timeline-title';
-  title.textContent = result.title || 'Untitled Page';
+  
+  // Use appropriate title based on item type
+  if (result.type === 'transcript') {
+    title.textContent = result.tabTitle || result.title || 'Audio Transcript';
+  } else {
+    title.textContent = result.title || 'Untitled Page';
+  }
 
   const url = document.createElement('div');
   url.className = 'timeline-url';
-  url.textContent = truncateUrl(result.url);
+  
+  // Handle different item types
+  if (result.type === 'transcript') {
+    url.textContent = 'Audio Transcript';
+  } else {
+    url.textContent = truncateUrl(result.url);
+  }
 
   details.appendChild(title);
   details.appendChild(url);
@@ -995,9 +1070,14 @@ function createTimelineItem(result, isFirstInGroup = false, isLastInGroup = fals
   item.appendChild(time);
   item.appendChild(content);
 
-  // Click handler - open URL
+  // Click handler - open URL (only for non-transcript items)
   item.addEventListener('click', () => {
-    chrome.tabs.create({ url: result.url });
+    if (result.type === 'transcript') {
+      // For transcripts, we could show a modal or do something else
+      console.log('Transcript clicked:', result);
+    } else if (result.url) {
+      chrome.tabs.create({ url: result.url });
+    }
   });
 
   return item;
@@ -1027,13 +1107,14 @@ function createResultCard(result) {
   if (result.type === 'transcript') {
     thumbnail.innerHTML = `
       <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="24" height="24" fill="#fafafa"/>
-        <circle cx="12" cy="12" r="8" stroke="#18181b" stroke-width="1.5" opacity="0.15"/>
-        <circle cx="12" cy="12" r="3" fill="#18181b" opacity="0.3"/>
-        <path d="M12 8V12L14 14" stroke="#18181b" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+        <rect width="24" height="24" fill="#f8fafc"/>
+        <rect x="4" y="3" width="16" height="18" rx="2" stroke="#3b82f6" stroke-width="1.5" fill="white"/>
+        <path d="M8 7h8M8 11h6M8 15h4" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="16" cy="6" r="2" fill="#3b82f6" opacity="0.2"/>
+        <path d="M15 6l1 1" stroke="#3b82f6" stroke-width="1" stroke-linecap="round"/>
       </svg>
     `;
-    thumbnail.style.background = 'linear-gradient(135deg, #fafafa 0%, #f4f4f5 100%)';
+    thumbnail.style.background = 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)';
     thumbnail.style.display = 'flex';
     thumbnail.style.alignItems = 'center';
     thumbnail.style.justifyContent = 'center';
@@ -1058,7 +1139,7 @@ function createResultCard(result) {
 
   // Different title for transcripts
   if (result.type === 'transcript') {
-    const transcriptTitle = result.tabTitle || 'Audio Transcript';
+    const transcriptTitle = result.tabTitle || result.title || 'Audio Transcript';
     if (query && result.searchScore > 0) {
       title.innerHTML = highlightText(transcriptTitle, query);
     } else {
@@ -1095,7 +1176,7 @@ function createResultCard(result) {
 
   const timestamp = document.createElement('div');
   timestamp.className = 'result-timestamp';
-  timestamp.innerHTML = `<span>🕐</span> ${formatTimestamp(result.timestamp)}`;
+  // timestamp.innerHTML = `<span>🕐</span> ${formatTimestamp(result.timestamp)}`;
 
   content.appendChild(title);
   content.appendChild(url);
@@ -1415,6 +1496,11 @@ function formatTimestamp(timestamp) {
  * Utility: Truncate URL
  */
 function truncateUrl(url) {
+  // Handle undefined or null URLs
+  if (!url) {
+    return 'No URL';
+  }
+  
   try {
     const urlObj = new URL(url);
     const domain = urlObj.hostname.replace('www.', '');
@@ -1660,21 +1746,43 @@ async function handleAskAI() {
   showState('aiLoading');
 
   try {
-    // First, do a semantic search to get relevant captures
+    // First, do a semantic search to get relevant captures (screenshots)
     const response = await chrome.runtime.sendMessage({
       action: 'search',
       query: query,
       semantic: true // Use semantic search for better relevance
     });
 
-    if (!response.results || response.results.length === 0) {
+    let allResults = response.results || [];
+
+    // Also search transcripts
+    const storage = await chrome.storage.local.get(null);
+    const transcripts = Object.keys(storage)
+      .filter(key => key.startsWith('transcript_'))
+      .map(key => storage[key])
+      .filter(transcript => {
+        const searchText = `${transcript.tabTitle || ''} ${transcript.text || ''} ${transcript.summary || ''}`.toLowerCase();
+        const queryLower = query.toLowerCase();
+        return searchText.includes(queryLower);
+      })
+      .map(transcript => ({
+        ...transcript,
+        type: 'transcript',
+        id: transcript.id || Date.now(),
+        searchScore: 100 // Give transcripts high score for relevance
+      }));
+
+    // Combine results
+    allResults = [...allResults, ...transcripts];
+
+    if (allResults.length === 0) {
       showState('noResults');
       return;
     }
 
     // Filter for only highly relevant results (score > 20 for better accuracy)
     // Only include results with actual search scores (meaning they matched the query)
-    const relevantResults = response.results.filter(r => r.searchScore && r.searchScore > 20);
+    const relevantResults = allResults.filter(r => r.searchScore && r.searchScore > 20);
 
     if (relevantResults.length === 0) {
       // No relevant results found
@@ -2106,22 +2214,11 @@ async function loadAnalytics() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const todayCaptures = captures.filter(c => new Date(c.timestamp) >= today).length;
-
     // Calculate this week
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - today.getDay());
     const weekCaptures = captures.filter(c => new Date(c.timestamp) >= startOfWeek).length;
 
-    // Calculate storage
-    const storage = await chrome.storage.local.get(null);
-    const storageSize = JSON.stringify(storage).length;
-    const storageMB = (storageSize / (1024 * 1024)).toFixed(2);
-
-    // Update banner stats
-    document.getElementById('analyticsTotal').textContent = total.toLocaleString();
-    document.getElementById('analyticsToday').textContent = todayCaptures.toLocaleString();
-    document.getElementById('analyticsWeek').textContent = weekCaptures.toLocaleString();
 
     // Update section subtitles
     document.getElementById('weekTotal').textContent = `${weekCaptures.toLocaleString()} captures this week`;
@@ -2252,25 +2349,6 @@ async function loadAnalytics() {
       `;
     }).join('');
 
-    // Additional insights
-    document.getElementById('analyticsStorage').textContent = `${storageMB} MB`;
-
-    // Oldest capture
-    if (captures.length > 0) {
-      const oldestTimestamp = Math.min(...captures.map(c => c.timestamp));
-      const oldestDate = new Date(oldestTimestamp);
-      const daysAgo = Math.floor((Date.now() - oldestTimestamp) / (1000 * 60 * 60 * 24));
-      document.getElementById('oldestCapture').textContent = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`;
-    }
-
-    // Busiest day
-    if (activityByDay.length > 0) {
-      const maxDayActivity = Math.max(...activityByDay);
-      const busiestDayIndex = activityByDay.indexOf(maxDayActivity);
-      const busiestDayDate = new Date(Date.now() - (6 - busiestDayIndex) * 24 * 60 * 60 * 1000);
-      const dayName = dayLabels[busiestDayDate.getDay()];
-      document.getElementById('busiestDay').textContent = maxDayActivity > 0 ? `${dayName} (${maxDayActivity})` : '-';
-    }
 
   } catch (error) {
     console.error('Failed to load analytics:', error);

@@ -150,9 +150,6 @@ body {
   justify-content: center;
   width: 32px;
   height: 32px;
-  background: var(--brand-primary);
-  border-radius: var(--radius-md);
-  color: white;
 }
 
 .brand-name {
@@ -2481,7 +2478,6 @@ body {
 
 .splash-icon {
   margin: 0 auto var(--space-6);
-  color: var(--brand-accent);
   animation: pulse-slow 2s ease-in-out infinite;
 }
 
