@@ -17,6 +17,7 @@ let splashProgressText;
 let splashActions;
 let splashContinue;
 let splashSetup;
+let splashDownload;
 
 // DOM Elements
 let searchInput;
@@ -110,6 +111,7 @@ async function initializeSplash() {
   splashActions = document.getElementById('splashActions');
   splashContinue = document.getElementById('splashContinue');
   splashSetup = document.getElementById('splashSetup');
+  splashDownload = document.getElementById('splashDownload');
 
   // Add event listeners
   splashContinue.addEventListener('click', () => {
@@ -119,6 +121,27 @@ async function initializeSplash() {
 
   splashSetup.addEventListener('click', () => {
     window.open('https://developer.chrome.com/docs/ai/built-in', '_blank');
+  });
+
+  splashDownload.addEventListener('click', async () => {
+    try {
+      // Disable the download button
+      splashDownload.disabled = true;
+      splashDownload.textContent = 'Downloading...';
+      
+      // Show progress
+      splashDownloadStatus.style.display = 'flex';
+      splashDownloadText.textContent = 'Downloading all models...';
+      
+      // Start downloading both models
+      await downloadAllModels();
+      
+    } catch (error) {
+      console.error('Download failed:', error);
+      splashDownload.disabled = false;
+      splashDownload.textContent = 'Download All Models (~1.8GB)';
+      splashDownloadText.textContent = 'Download failed - Click to retry';
+    }
   });
 
   // Check AI availability
@@ -177,38 +200,32 @@ async function checkAIAvailability() {
 
     if (availability === 'downloadable' || availability === 'downloading') {
       splashCheckModel.innerHTML = '<span class="check-icon">✓</span>';
-      splashModelText.textContent = 'Model found';
+      splashModelText.textContent = 'AI model found';
 
-      // Step 3: Download model
-      splashDownloadStatus.style.display = 'flex';
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      try {
-        const session = await window.LanguageModel.create({
-          expectedOutputs: [{ type: 'text', languages: ['en'] }],
-          monitor(m) {
-            m.addEventListener('downloadprogress', (e) => {
-              const percent = Math.round(e.loaded * 100);
-              splashProgress.style.width = `${percent}%`;
-              splashProgressText.textContent = `${percent}%`;
-              splashDownloadText.textContent = `Downloading AI model... (${percent}%)`;
-            });
-          }
-        });
-
-        aiSession = session;
-        splashDownloadText.textContent = 'Download complete!';
-        splashProgress.style.width = '100%';
-        splashProgressText.textContent = '100%';
-
-        setTimeout(() => {
-          splashScreen.style.display = 'none';
-          mainApp.style.display = 'flex';
-        }, 1000);
-
-      } catch (error) {
-        console.error('Download failed:', error);
-        splashDownloadText.textContent = 'Download failed - continuing without AI';
+      if (availability === 'downloading') {
+        // Show downloading progress
+        splashDownloadStatus.style.display = 'flex';
+        splashDownloadText.textContent = 'Downloading AI model...';
+        splashProgress.style.width = '0%';
+        splashProgressText.textContent = '0%';
+        
+        // Hide download button, show continue
+        const splashDownload = document.getElementById('splashDownload');
+        if (splashDownload) splashDownload.style.display = 'none';
+        splashActions.style.display = 'flex';
+      } else {
+        // Show download button for both models
+        splashDownloadStatus.style.display = 'flex';
+        splashDownloadText.textContent = 'AI & Proofreader models ready for download';
+        splashProgress.style.width = '0%';
+        splashProgressText.textContent = '0%';
+        
+        // Update button text to reflect both models
+        if (splashDownload) {
+          splashDownload.textContent = 'Download All Models (~1.8GB)';
+        }
+        
+        // Show download button
         splashActions.style.display = 'flex';
       }
     }
@@ -508,10 +525,7 @@ async function initializeMainApp() {
   await loadRecentCaptures();
   await initializeAI();
 
-  // Initialize Proofreader API in background (non-blocking)
-  initializeProofreader().catch(err => {
-    console.log('Proofreader initialization skipped:', err);
-  });
+  // Proofreader API will be initialized on first user interaction
 }
 
 /**
@@ -536,12 +550,14 @@ function switchMode(mode) {
   // Update UI based on mode
   if (mode === 'browse') {
     // Browse mode: Timeline view with dates and domain grouping
+    resultsContainer.innerHTML = ''; // Clear any existing content
     resultsContainer.style.display = 'block'; // Timeline uses block
     searchInput.placeholder = 'Search timeline...';
     searchModeToggles.style.display = 'none';
     searchInput.value = ''; // Clear search
     loadBrowseMode();
   } else if (mode === 'search') {
+    resultsContainer.innerHTML = ''; // Clear any existing content
     resultsContainer.style.display = 'grid'; // Grid for search
     // Search mode: Strict keyword/OCR/transcript/image search only
     searchInput.placeholder = 'Search text, keywords, OCR...';
@@ -550,6 +566,7 @@ function switchMode(mode) {
     loadSearchMode(); // Load all items in grid view
   } else if (mode === 'ask') {
     // Ask mode: AI-powered natural language Q&A
+    resultsContainer.innerHTML = ''; // Clear any existing content
     searchInput.placeholder = 'Ask anything about your browsing...';
     searchModeToggles.style.display = 'none';
     searchInput.value = ''; // Clear search
@@ -566,8 +583,15 @@ function switchMode(mode) {
 function exitChatMode() {
   aiChatContainer.style.display = 'none';
 
-  // Both browse and search now use grid layout
-  resultsContainer.style.display = 'grid';
+  // Set correct display based on current mode
+  if (currentMode === 'browse') {
+    resultsContainer.style.display = 'block'; // Timeline view
+  } else if (currentMode === 'search') {
+    resultsContainer.style.display = 'grid'; // Grid view
+  } else if (currentMode === 'ask') {
+    // Show the Ask mode empty state with welcome message
+    showState('empty');
+  }
 
   // Reset search input
   searchInput.placeholder = currentMode === 'browse' ? 'Search timeline...' :
@@ -789,9 +813,9 @@ async function handleSearch() {
           if (ageInDays < 1) score += 8;
 
           return {
-            ...transcript,
-            type: 'transcript',
-            id: transcript.id || Date.now(),
+          ...transcript,
+          type: 'transcript',
+          id: transcript.id || Date.now(),
             searchScore: score,
             hasExactPhrase: hasExactPhrase
           };
@@ -821,18 +845,22 @@ async function handleSearch() {
         return b.timestamp - a.timestamp;
       });
 
-      // Only show results with score > 30 (good matches)
-      const filteredResults = results.filter(r => r.searchScore && r.searchScore > 30);
-
+      // Only show results with score > 50 (good matches)
+      const filteredResults = results.filter(r => r.searchScore && r.searchScore > 50);
+      
       if (filteredResults.length > 0) {
         results = filteredResults;
-        console.log(`🔍 Filtered to ${results.length} high-quality matches (score > 30)`);
+        console.log(`🔍 Filtered to ${results.length} high-quality matches (score > 50)`);
         console.log('Top 3 results:', results.slice(0, 3).map(r => ({
           type: r.type,
           title: r.title || r.tabTitle,
           score: r.searchScore,
           hasExactPhrase: r.hasExactPhrase
         })));
+      } else {
+        // No good matches found - show empty results
+        results = [];
+        console.log('🔍 No high-quality matches found (all scores ≤ 50)');
       }
     }
 
@@ -896,6 +924,50 @@ function extractKeyTerms(query) {
 
   // Join remaining key terms
   return words.join(' ');
+}
+
+/**
+ * Detect time-based queries and extract time filters
+ */
+function detectTimeQuery(query) {
+  const lowerQuery = query.toLowerCase();
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+  const thisWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  
+  let timeFilter = null;
+  let searchTerms = lowerQuery;
+  
+  // Check for time-based keywords
+  if (lowerQuery.includes('today')) {
+    timeFilter = { start: today, end: now };
+    searchTerms = searchTerms.replace(/\btoday\b/g, '').trim();
+  } else if (lowerQuery.includes('yesterday')) {
+    timeFilter = { start: yesterday, end: today };
+    searchTerms = searchTerms.replace(/\byesterday\b/g, '').trim();
+  } else if (lowerQuery.includes('this week')) {
+    timeFilter = { start: thisWeek, end: now };
+    searchTerms = searchTerms.replace(/\bthis week\b/g, '').trim();
+  } else if (lowerQuery.includes('this month')) {
+    timeFilter = { start: thisMonth, end: now };
+    searchTerms = searchTerms.replace(/\bthis month\b/g, '').trim();
+  } else if (lowerQuery.includes('last week')) {
+    const lastWeek = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000);
+    timeFilter = { start: lastWeek, end: thisWeek };
+    searchTerms = searchTerms.replace(/\blast week\b/g, '').trim();
+  } else if (lowerQuery.includes('last month')) {
+    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    timeFilter = { start: lastMonth, end: thisMonth };
+    searchTerms = searchTerms.replace(/\blast month\b/g, '').trim();
+  }
+  
+  return {
+    hasTimeFilter: timeFilter !== null,
+    timeFilter: timeFilter,
+    searchTerms: searchTerms.trim()
+  };
 }
 
 /**
@@ -1199,7 +1271,7 @@ function createTimelineGroup(group) {
     // Set transcript color
     container.style.setProperty('--group-color', '#3b82f6');
   } else {
-    icon.innerHTML = `<img src="${faviconUrl}" alt="${domain}" onerror="this.style.display='none'; this.parentElement.innerHTML='<svg width=\\'16\\' height=\\'16\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'2\\'><circle cx=\\'12\\' cy=\\'12\\' r=\\'10\\'/><line x1=\\'2\\' y1=\\'12\\' x2=\\'22\\' y2=\\'12\\'/><path d=\\'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\\'/></svg>';" style="width: 16px; height: 16px; border-radius: 2px;">`;
+  icon.innerHTML = `<img src="${faviconUrl}" alt="${domain}" onerror="this.style.display='none'; this.parentElement.innerHTML='<svg width=\\'16\\' height=\\'16\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'2\\'><circle cx=\\'12\\' cy=\\'12\\' r=\\'10\\'/><line x1=\\'2\\' y1=\\'12\\' x2=\\'22\\' y2=\\'12\\'/><path d=\\'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\\'/></svg>';" style="width: 16px; height: 16px; border-radius: 2px;">`;
 
     // Extract color from favicon
     extractColorFromFavicon(faviconUrl, (color) => {
@@ -1286,7 +1358,7 @@ function createTimelineItem(result, isFirstInGroup = false, isLastInGroup = fals
   if (result.type === 'transcript') {
     title.textContent = result.tabTitle || result.title || 'Audio Transcript';
   } else {
-    title.textContent = result.title || 'Untitled Page';
+  title.textContent = result.title || 'Untitled Page';
   }
 
   const url = document.createElement('div');
@@ -1296,7 +1368,7 @@ function createTimelineItem(result, isFirstInGroup = false, isLastInGroup = fals
   if (result.type === 'transcript') {
     url.textContent = 'Audio Transcript';
   } else {
-    url.textContent = truncateUrl(result.url);
+  url.textContent = truncateUrl(result.url);
   }
 
   details.appendChild(title);
@@ -1314,7 +1386,7 @@ function createTimelineItem(result, isFirstInGroup = false, isLastInGroup = fals
       // For transcripts, we could show a modal or do something else
       console.log('Transcript clicked:', result);
     } else if (result.url) {
-      chrome.tabs.create({ url: result.url });
+    chrome.tabs.create({ url: result.url });
     }
   });
 
@@ -1789,15 +1861,8 @@ async function initializeAI() {
     }
 
     if (availability === 'downloadable') {
-      console.log('📥 AI model can be downloaded. Starting download automatically...');
-
-      // Automatically start download in background
-      try {
-        await startAIModelDownload();
-      } catch (error) {
-        console.error('Failed to start download:', error);
-        showAISetupGuide('needs_download');
-      }
+      console.log('📥 AI model can be downloaded. User needs to click Ask AI button to start download.');
+      showAISetupGuide('needs_download');
       return;
     }
 
@@ -1825,6 +1890,125 @@ async function initializeAI() {
 }
 
 /**
+ * Download all models (AI + Proofreader) for complete setup
+ */
+async function downloadAllModels() {
+  console.log('⏬ Starting download of all models...');
+  console.log('📊 Monitor progress at: chrome://components');
+  console.log('🔍 Look for: "Optimization Guide On Device Model" and "Proofreader"');
+
+  let aiDownloadComplete = false;
+  let proofreaderDownloadComplete = false;
+  let totalProgress = 0;
+
+  try {
+    // Download AI model first
+    console.log('🤖 Starting AI model download...');
+    splashDownloadText.textContent = 'Downloading AI model...';
+    
+    const aiSession = await window.LanguageModel.create({
+      expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      outputLanguage: 'en',
+      monitor(m) {
+        m.addEventListener('downloadprogress', (e) => {
+          const percent = Math.round(e.loaded * 100);
+          console.log(`📥 AI model: ${percent}% complete`);
+          
+          // Update progress (AI model is 90% of total progress)
+          totalProgress = Math.round(percent * 0.9);
+          if (splashProgress) {
+            splashProgress.style.width = `${totalProgress}%`;
+            splashProgressText.textContent = `${totalProgress}%`;
+            splashDownloadText.textContent = `Downloading AI model... ${percent}%`;
+          }
+        });
+      }
+    });
+
+    aiDownloadComplete = true;
+    // Store the AI session globally
+    window.aiSession = aiSession;
+    console.log('✅ AI model download complete!');
+
+    // Now download Proofreader model
+    console.log('📝 Starting Proofreader model download...');
+    splashDownloadText.textContent = 'Downloading Proofreader model...';
+
+    if (typeof window.Proofreader !== 'undefined') {
+      const availability = await window.Proofreader.availability();
+      
+      if (availability === 'downloadable' || availability === 'readily') {
+        proofreaderSession = await window.Proofreader.create({
+          expectedInputLanguages: ['en'],
+          outputLanguage: 'en',
+          monitor(m) {
+            m.addEventListener('downloadprogress', (e) => {
+              const percent = Math.round(e.loaded * 100);
+              console.log(`📥 Proofreader: ${percent}% complete`);
+              
+              // Update progress (Proofreader is 10% of total progress, starting from 90%)
+              totalProgress = 90 + Math.round(percent * 0.1);
+              if (splashProgress) {
+                splashProgress.style.width = `${totalProgress}%`;
+                splashProgressText.textContent = `${totalProgress}%`;
+                splashDownloadText.textContent = `Downloading Proofreader... ${percent}%`;
+              }
+            });
+          }
+        });
+        proofreaderDownloadComplete = true;
+        console.log('✅ Proofreader model download complete!');
+      } else {
+        console.log('📝 Proofreader not available, skipping...');
+        proofreaderDownloadComplete = true;
+      }
+    } else {
+      console.log('📝 Proofreader API not available, skipping...');
+      proofreaderDownloadComplete = true;
+    }
+
+    // Both downloads complete
+    console.log('🎉 All model downloads complete!');
+    console.log('💡 AI answers and query correction now available');
+
+    // Enable AI features
+    askAiBtn.disabled = false;
+    askMode.disabled = false;
+    askAiBtn.textContent = '🤖';
+    askAiBtn.title = 'Ask AI - Ready!';
+
+    // Update splash screen to show completion
+    if (splashProgress) {
+      splashProgress.style.width = '100%';
+      splashProgressText.textContent = '100%';
+      splashDownloadText.textContent = 'All models downloaded! Ready to use.';
+    }
+
+    // Auto-transition to main app after a short delay
+    setTimeout(() => {
+      splashScreen.style.display = 'none';
+      mainApp.style.display = 'flex';
+    }, 2000);
+
+  } catch (error) {
+    console.error('❌ Failed to download models:', error);
+    
+    // Show user-friendly error
+    if (splashDownloadText) {
+      splashDownloadText.textContent = 'Download failed - Click to retry';
+    }
+    
+    // Re-enable download button
+    if (splashDownload) {
+      splashDownload.disabled = false;
+      splashDownload.textContent = 'Download All Models (~1.8GB)';
+    }
+    
+    throw error;
+  }
+}
+
+/**
  * Start AI model download automatically (CORRECTED - uses LanguageModel)
  */
 async function startAIModelDownload() {
@@ -1836,12 +2020,20 @@ async function startAIModelDownload() {
     // Create a session to trigger download (per official docs)
     const session = await window.LanguageModel.create({
       expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      outputLanguage: 'en', // Specify output language to fix the warning
       monitor(m) {
         m.addEventListener('downloadprogress', (e) => {
           const percent = Math.round(e.loaded * 100);
           console.log(`📥 Downloading AI model: ${percent}% complete`);
 
-          // Update UI to show progress
+          // Update splash screen progress
+          if (splashProgress) {
+            splashProgress.style.width = `${percent}%`;
+            splashProgressText.textContent = `${percent}%`;
+            splashDownloadText.textContent = `Downloading AI model... ${percent}%`;
+          }
+
+          // Update main app UI to show progress
           if (askAiBtn) {
             askAiBtn.textContent = `⏬ ${percent}%`;
             askAiBtn.title = `Downloading AI model: ${percent}%`;
@@ -1861,6 +2053,19 @@ async function startAIModelDownload() {
     askMode.disabled = false;
     askAiBtn.textContent = '🤖';
     askAiBtn.title = 'Ask AI - Ready!';
+
+    // Update splash screen to show completion
+    if (splashProgress) {
+      splashProgress.style.width = '100%';
+      splashProgressText.textContent = '100%';
+      splashDownloadText.textContent = 'Download complete! AI ready to use.';
+    }
+
+    // Auto-transition to main app after a short delay
+    setTimeout(() => {
+      splashScreen.style.display = 'none';
+      mainApp.style.display = 'flex';
+    }, 2000);
 
   } catch (error) {
     console.error('❌ Failed to start AI model download:', error);
@@ -1980,6 +2185,44 @@ async function handleAskAI() {
   // Set flag to prevent duplicate calls
   isGeneratingResponse = true;
 
+  // Check AI availability first
+  try {
+    if (typeof window.LanguageModel === 'undefined') {
+      throw new Error('Prompt API not available');
+    }
+
+    const availability = await window.LanguageModel.availability({
+      expectedInputs: [{ type: 'text', languages: ['en'] }],
+      expectedOutputs: [{ type: 'text', languages: ['en'] }]
+    });
+
+    if (availability === 'downloadable') {
+      console.log('📥 Starting AI model download...');
+      showState('aiLoading');
+      await startAIModelDownload();
+      return;
+    }
+
+    if (availability === 'downloading') {
+      console.log('⏬ AI model is currently downloading...');
+      showState('aiLoading');
+      // Show downloading state and wait
+      showAISetupGuide('needs_download');
+      return;
+    }
+
+    if (availability === 'unavailable') {
+      throw new Error('AI model not available on this device');
+    }
+
+  } catch (error) {
+    console.error('AI availability check failed:', error);
+    showState('noResults');
+    alert('AI is not available. Please check your Chrome setup and try again.');
+    isGeneratingResponse = false;
+    return;
+  }
+
   // Hide other states, show AI loading
   showState('aiLoading');
 
@@ -1987,12 +2230,18 @@ async function handleAskAI() {
     // First, correct any typos/grammar mistakes
     const correctedQuery = await correctQuery(query);
 
-    // Then extract key terms from natural language question
-    const searchQuery = extractKeyTerms(correctedQuery);
+    // Detect time-based queries
+    const timeQuery = detectTimeQuery(correctedQuery);
     console.log(`🔍 Original query: "${query}"`);
     if (correctedQuery !== query) {
       console.log(`📝 Corrected query: "${correctedQuery}"`);
     }
+    if (timeQuery.hasTimeFilter) {
+      console.log(`⏰ Time filter detected: ${timeQuery.timeFilter.start.toDateString()} to ${timeQuery.timeFilter.end.toDateString()}`);
+    }
+
+    // Extract key terms from the remaining query (after removing time terms)
+    const searchQuery = extractKeyTerms(timeQuery.searchTerms || correctedQuery);
     console.log(`🔍 Extracted terms: "${searchQuery}"`);
 
     // First, do a semantic search to get relevant captures (screenshots)
@@ -2003,6 +2252,15 @@ async function handleAskAI() {
     });
 
     let allResults = response.results || [];
+
+    // Apply time filter if detected
+    if (timeQuery.hasTimeFilter) {
+      allResults = allResults.filter(result => {
+        const resultDate = new Date(result.timestamp);
+        return resultDate >= timeQuery.timeFilter.start && resultDate <= timeQuery.timeFilter.end;
+      });
+      console.log(`⏰ Filtered to ${allResults.length} results within time range`);
+    }
 
     // Also search transcripts with sophisticated scoring (same as Search mode)
     const storage = await chrome.storage.local.get(null);
@@ -2081,19 +2339,28 @@ async function handleAskAI() {
         if (ageInDays < 1) score += 8;
 
         return {
-          ...transcript,
-          type: 'transcript',
-          id: transcript.id || Date.now(),
+        ...transcript,
+        type: 'transcript',
+        id: transcript.id || Date.now(),
           searchScore: score,
           hasExactPhrase: hasExactPhrase
         };
       })
       .filter(transcript => transcript.searchScore > 0);
 
-    // Combine results
+    // Apply time filter to transcripts if detected
+    if (timeQuery.hasTimeFilter) {
+      const filteredTranscripts = transcripts.filter(transcript => {
+        const transcriptDate = new Date(transcript.timestamp);
+        return transcriptDate >= timeQuery.timeFilter.start && transcriptDate <= timeQuery.timeFilter.end;
+      });
+      console.log(`⏰ Filtered transcripts to ${filteredTranscripts.length} within time range`);
+      allResults = [...allResults, ...filteredTranscripts];
+    } else {
     allResults = [...allResults, ...transcripts];
+    }
 
-    console.log(`🤖 Ask AI: Found ${allResults.length} total results (${transcripts.length} transcripts)`);
+    console.log(`🤖 Ask AI: Found ${allResults.length} total results (${timeQuery.hasTimeFilter ? 'time-filtered' : 'all'} transcripts)`);
 
     if (allResults.length === 0) {
       showState('noResults');
@@ -2124,13 +2391,8 @@ async function handleAskAI() {
 
     if (relevantResults.length === 0) {
       // No relevant results found
-      aiAnswerContainer.style.display = 'block';
-      resultsContainer.style.display = 'none';
-      loadingState.style.display = 'none';
-      aiLoadingState.style.display = 'none';
-
-      aiAnswerText.textContent = "I couldn't find any browsing history related to your question. Try searching for specific keywords or browse your timeline to see what you've visited.";
-      aiSourcesList.innerHTML = '';
+      // Show simple no results state instead of AI answer container
+      showState('noResults');
       return;
     }
 
@@ -2161,13 +2423,8 @@ async function handleAskAI() {
 
     if (topResults.length === 0) {
       // No relevant results found
-      aiAnswerContainer.style.display = 'block';
-      resultsContainer.style.display = 'none';
-      loadingState.style.display = 'none';
-      aiLoadingState.style.display = 'none';
-
-      aiAnswerText.textContent = "I couldn't find any browsing history related to your question. Try searching for specific keywords or browse your timeline to see what you've visited.";
-      aiSourcesList.innerHTML = '';
+      // Show simple no results state instead of AI answer container
+      showState('noResults');
       return;
     }
 
@@ -2235,6 +2492,7 @@ async function generateAIAnswer(query, results) {
     if (!aiSession) {
       aiSession = await window.LanguageModel.create({
         expectedOutputs: [{ type: 'text', languages: ['en'] }],
+        outputLanguage: 'en', // Specify output language to fix the warning
         systemPrompt: `You are a helpful, conversational assistant that answers questions about the user's browsing history.
 
 Guidelines:
@@ -2562,17 +2820,23 @@ async function initializeProofreader() {
 
     // If downloadable, create session (will trigger download if needed)
     if (availability === 'downloadable' || availability === 'readily') {
-      proofreaderSession = await window.Proofreader.create({
-        expectedInputLanguages: ['en'],
-        monitor(m) {
-          m.addEventListener('downloadprogress', (e) => {
-            console.log(`📝 Proofreader download: ${(e.loaded * 100).toFixed(1)}%`);
-          });
-        }
-      });
+      try {
+        proofreaderSession = await window.Proofreader.create({
+          expectedInputLanguages: ['en'],
+          outputLanguage: 'en', // Specify output language to fix the warning
+          monitor(m) {
+            m.addEventListener('downloadprogress', (e) => {
+              console.log(`📝 Proofreader download: ${(e.loaded * 100).toFixed(1)}%`);
+            });
+          }
+        });
 
-      console.log('✅ Proofreader API initialized');
-      return true;
+        console.log('✅ Proofreader API initialized');
+        return true;
+      } catch (createError) {
+        console.warn('Failed to create Proofreader session:', createError);
+        return false;
+      }
     }
 
     return false;
@@ -2587,28 +2851,39 @@ async function initializeProofreader() {
  */
 async function correctQuery(query) {
   try {
-    // If no proofreader session, return original query
+    // Initialize proofreader on first use (user gesture)
     if (!proofreaderSession) {
-      return query;
+      const initialized = await initializeProofreader();
+      if (!initialized || !proofreaderSession) {
+        console.log('📝 Proofreader not available, using original query');
+        return query;
+      }
     }
 
     // Proofread the query
     const result = await proofreaderSession.proofread(query);
+    
+    // Debug: Log the full result structure
+    console.log('📝 Proofreader result:', result);
 
     // If corrections were made, log and return corrected text
     if (result.corrections && result.corrections.length > 0) {
+      // The corrected text might be in result.text or result.correctedText
+      const correctedText = result.text || result.correctedText || result.corrected || query;
       console.log('📝 Query corrected:', {
         original: query,
-        corrected: result.corrected,
+        corrected: correctedText,
         corrections: result.corrections.length
       });
-      return result.corrected;
+      return correctedText;
     }
 
     // No corrections needed
     return query;
   } catch (error) {
     console.warn('Query correction failed:', error);
+    // Reset session on error to try again next time
+    proofreaderSession = null;
     return query; // Return original on error
   }
 }
@@ -2647,11 +2922,17 @@ function renderWeeklyActivityChart(captures) {
   const maxActivity = Math.max(...activityByDay, 1);
   const activityChart = document.getElementById('activityChart');
   activityChart.innerHTML = activityByDay.map((count, index) => {
-    const height = (count / maxActivity) * 100;
+    // Calculate height in pixels (container is 120px, so max is 120px)
+    let heightPx = 0;
+    if (count > 0) {
+      const percentage = (count / maxActivity) * 100;
+      heightPx = Math.max((percentage / 100) * 120, 6); // Minimum 6px for visibility
+    }
+    
     return `
       <div class="chart-bar">
         <div class="bar-container">
-          <div class="bar-fill" style="height: ${height}%">
+          <div class="bar-fill" style="height: ${heightPx}px">
             <div class="bar-value">${count}</div>
           </div>
         </div>
@@ -2691,12 +2972,6 @@ function renderDailyActivityChart(captures) {
     activityByInterval[intervalIndex]++;
   });
 
-  console.log('📊 Daily Activity Data:', {
-    todayCaptures: todayCaptures.length,
-    activityByInterval,
-    maxActivity: Math.max(...activityByInterval, 1)
-  });
-
   // Update title
   document.getElementById('activityChartTitle').textContent = 'Activity (Today)';
 
@@ -2707,17 +2982,19 @@ function renderDailyActivityChart(captures) {
   // Render chart
   const maxActivity = Math.max(...activityByInterval, 1);
   const activityChart = document.getElementById('activityChart');
+  
   activityChart.innerHTML = activityByInterval.map((count, index) => {
-    // Calculate height with minimum of 5% for bars with data
-    let height = 0;
+    // Calculate height in pixels (container is 120px, so max is 120px)
+    let heightPx = 0;
     if (count > 0) {
-      height = Math.max((count / maxActivity) * 100, 5);
+      const percentage = (count / maxActivity) * 100;
+      heightPx = Math.max((percentage / 100) * 120, 6); // Minimum 6px for visibility
     }
 
     return `
       <div class="chart-bar">
         <div class="bar-container">
-          <div class="bar-fill" style="height: ${height}%">
+          <div class="bar-fill" style="height: ${heightPx}px">
             <div class="bar-value">${count}</div>
           </div>
         </div>
@@ -2947,6 +3224,7 @@ async function startTranscription() {
       transcriptionSession = await window.LanguageModel.create({
         expectedInputs: [{ type: 'audio' }],
         expectedOutputs: [{ type: 'text', languages: ['en'] }],
+        outputLanguage: 'en', // Specify output language to fix the warning
         systemPrompt: 'You are a transcription assistant. Transcribe the audio accurately, word for word.'
       });
 
@@ -3380,7 +3658,7 @@ async function handleTranscriptionComplete() {
       }
     } else {
       // Show generic error message for other types of errors
-      const errorMessage = `
+    const errorMessage = `
         <div style="text-align: center; max-width: 400px; margin: 0 auto; padding: 2rem;">
           <div style="font-size: 1.125rem; font-weight: 600; color: #18181b; margin-bottom: 0.75rem; letter-spacing: -0.01em;">Transcription Failed</div>
           <div style="font-size: 0.9375rem; color: #71717a; line-height: 1.6; margin-bottom: 2rem;">
@@ -3415,11 +3693,11 @@ async function handleTranscriptionComplete() {
               Download Audio
             </button>
             ` : ''}
-          </div>
         </div>
-      `;
+      </div>
+    `;
 
-      updateTranscriptDisplay(errorMessage);
+    updateTranscriptDisplay(errorMessage);
     }
 
     // Don't reset state yet - let user click buttons (Try Again / Download Audio)

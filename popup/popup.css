@@ -3521,6 +3521,7 @@ body {
   justify-content: center;
   flex: 1;
   position: relative;
+  height: 120px; /* Give the container a fixed height for percentage to work */
 }
 
 .bar-fill {
