@@ -15,7 +15,6 @@
       </div>
 
       <h1 class="splash-title">BrowseBack</h1>
-      <p class="splash-subtitle">Checking AI capabilities...</p>
 
       <div class="splash-status">
         <div class="status-item">
@@ -50,7 +49,6 @@
 
       <div class="splash-actions" id="splashActions" style="display: none;">
         <button id="splashDownload" class="splash-btn primary">Download All Models (~1.8GB)</button>
-        <button id="splashContinue" class="splash-btn secondary">Continue without AI</button>
         <button id="splashSetup" class="splash-btn secondary">Setup Guide</button>
       </div>
 
@@ -60,6 +58,118 @@
           <path d="M6 6V4C6 2.89543 6.89543 2 8 2C9.10457 2 10 2.89543 10 4V6" stroke="currentColor" stroke-width="1.5"/>
         </svg>
         <span>All processing happens locally on your device</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Setup Guide Modal -->
+  <div id="setupModal" class="modal" style="display: none;">
+    <div class="modal-overlay" id="modalOverlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Enable Chrome AI</h2>
+        <button class="modal-close" id="closeModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="setup-steps">
+          <div class="setup-step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <h3>Open Chrome Flags</h3>
+              <div class="code-block-wrapper">
+                <code class="code-block" id="flagsUrl">chrome://flags</code>
+                <button class="copy-icon-btn" id="copyFlagsBtn" title="Copy to clipboard">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="setup-step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <h3>Enable These Flags</h3>
+              <p>Click icon to copy URL, then paste in chrome://flags:</p>
+              <ul class="flags-list-with-copy">
+                <li>
+                  <span class="flag-name">Prompt API for Gemini Nano</span>
+                  <button class="flag-copy-btn" data-flag="chrome://flags/#prompt-api-for-gemini-nano" title="Copy URL">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                </li>
+                <li>
+                  <span class="flag-name">Summarization API for Gemini Nano</span>
+                  <button class="flag-copy-btn" data-flag="chrome://flags/#summarization-api-for-gemini-nano" title="Copy URL">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                </li>
+                <li>
+                  <span class="flag-name">Writer API for Gemini Nano</span>
+                  <button class="flag-copy-btn" data-flag="chrome://flags/#writer-api-for-gemini-nano" title="Copy URL">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                </li>
+                <li>
+                  <span class="flag-name">Rewriter API for Gemini Nano</span>
+                  <button class="flag-copy-btn" data-flag="chrome://flags/#rewriter-api-for-gemini-nano" title="Copy URL">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                </li>
+                <li>
+                  <span class="flag-name">Proofreader API for Gemini Nano</span>
+                  <button class="flag-copy-btn" data-flag="chrome://flags/#optimization-guide-on-device-model" title="Copy URL">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                </li>
+                <li>
+                  <span class="flag-name">Enables optimization guide on device</span>
+                  <button class="flag-copy-btn" data-flag="chrome://flags/#optimization-guide-model-execution" title="Copy URL">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="setup-step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <h3>Restart Chrome</h3>
+              <p>Click "Relaunch" at the bottom</p>
+            </div>
+          </div>
+
+          <div class="setup-step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <h3>Download Models</h3>
+              <p>Return here and click "Download All Models"</p>
+            </div>
+          </div>
+        </div>
+
+        <button class="modal-action-btn" id="modalActionBtn">Close</button>
       </div>
     </div>
   </div>

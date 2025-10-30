@@ -85,6 +85,9 @@ let currentTranscript = '';
  * Initialize the popup
  */
 async function init() {
+  // Setup modal event listeners early (needed for splash screen)
+  setupModalEventListeners();
+
   // First, show splash screen and initialize AI
   await initializeSplash();
 
@@ -114,13 +117,17 @@ async function initializeSplash() {
   splashDownload = document.getElementById('splashDownload');
 
   // Add event listeners
-  splashContinue.addEventListener('click', () => {
-    splashScreen.style.display = 'none';
-    mainApp.style.display = 'flex';
-  });
+  // Remove splashContinue since we removed the button
+  if (splashContinue) {
+    splashContinue.addEventListener('click', () => {
+      splashScreen.style.display = 'none';
+      mainApp.style.display = 'flex';
+    });
+  }
 
+  // Setup Guide button opens modal instead of external link
   splashSetup.addEventListener('click', () => {
-    window.open('https://developer.chrome.com/docs/ai/built-in', '_blank');
+    showSetupModal();
   });
 
   splashDownload.addEventListener('click', async () => {
@@ -139,13 +146,134 @@ async function initializeSplash() {
     } catch (error) {
       console.error('Download failed:', error);
       splashDownload.disabled = false;
-      splashDownload.textContent = 'Download All Models (~1.8GB)';
-      splashDownloadText.textContent = 'Download failed - Click to retry';
+      splashDownload.textContent = 'Download AI Models';
+      splashDownloadText.textContent = 'Download failed - Refer to setup guide';
     }
   });
 
   // Check AI availability
   await checkAIAvailability();
+}
+
+/**
+ * Setup modal event listeners
+ */
+function setupModalEventListeners() {
+  const closeModalBtn = document.getElementById('closeModal');
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalActionBtn = document.getElementById('modalActionBtn');
+  const copyFlagsBtn = document.getElementById('copyFlagsBtn');
+
+  console.log('Setting up modal listeners:', {
+    closeModalBtn: !!closeModalBtn,
+    modalOverlay: !!modalOverlay,
+    modalActionBtn: !!modalActionBtn,
+    copyFlagsBtn: !!copyFlagsBtn
+  });
+
+  if (closeModalBtn) {
+    closeModalBtn.addEventListener('click', () => {
+      console.log('Close button clicked');
+      hideSetupModal();
+    });
+  }
+
+  if (modalOverlay) {
+    modalOverlay.addEventListener('click', () => {
+      console.log('Overlay clicked');
+      hideSetupModal();
+    });
+  }
+
+  if (modalActionBtn) {
+    modalActionBtn.addEventListener('click', () => {
+      console.log('Action button clicked');
+      hideSetupModal();
+    });
+  }
+
+  // Copy flags URL button
+  if (copyFlagsBtn) {
+    copyFlagsBtn.addEventListener('click', () => {
+      const flagsUrl = document.getElementById('flagsUrl');
+      if (flagsUrl) {
+        navigator.clipboard.writeText(flagsUrl.textContent).then(() => {
+          // Show checkmark icon
+          copyFlagsBtn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          `;
+          copyFlagsBtn.style.color = 'var(--success)';
+
+          // Reset after 2 seconds
+          setTimeout(() => {
+            copyFlagsBtn.innerHTML = `
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            `;
+            copyFlagsBtn.style.color = '';
+          }, 2000);
+        }).catch(err => {
+          console.error('Failed to copy:', err);
+        });
+      }
+    });
+  }
+
+  // Copy individual flag URLs
+  const flagCopyBtns = document.querySelectorAll('.flag-copy-btn');
+  flagCopyBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const flagUrl = btn.getAttribute('data-flag');
+      if (flagUrl) {
+        navigator.clipboard.writeText(flagUrl).then(() => {
+          // Show checkmark
+          const originalHTML = btn.innerHTML;
+          btn.innerHTML = `
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          `;
+          btn.style.color = 'var(--success)';
+
+          // Reset after 1.5 seconds
+          setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.style.color = '';
+          }, 1500);
+        }).catch(err => {
+          console.error('Failed to copy flag URL:', err);
+        });
+      }
+    });
+  });
+}
+
+/**
+ * Show setup guide modal
+ */
+function showSetupModal() {
+  const modal = document.getElementById('setupModal');
+  console.log('Showing modal:', !!modal);
+  if (modal) {
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+  }
+}
+
+/**
+ * Hide setup guide modal
+ */
+function hideSetupModal() {
+  const modal = document.getElementById('setupModal');
+  console.log('Hiding modal:', !!modal);
+  if (modal) {
+    modal.style.display = 'none';
+    document.body.style.overflow = ''; // Restore scrolling
+  }
 }
 
 /**
@@ -158,7 +286,7 @@ async function checkAIAvailability() {
 
     if (typeof window.LanguageModel === 'undefined') {
       splashCheckAPI.innerHTML = '<span class="error-icon">✕</span>';
-      splashAPIText.textContent = 'API not available - Enable chrome://flags';
+      splashAPIText.textContent = 'API not enabled - Refer to setup guide';
       splashActions.style.display = 'flex';
       return;
     }
@@ -216,13 +344,13 @@ async function checkAIAvailability() {
       } else {
         // Show download button for both models
         splashDownloadStatus.style.display = 'flex';
-        splashDownloadText.textContent = 'AI & Proofreader models ready for download';
+        splashDownloadText.textContent = 'AI & Proofreader models ready for download. Click on download';
         splashProgress.style.width = '0%';
         splashProgressText.textContent = '0%';
         
         // Update button text to reflect both models
         if (splashDownload) {
-          splashDownload.textContent = 'Download All Models (~1.8GB)';
+          splashDownload.textContent = 'Download AI Models';
         }
         
         // Show download button
@@ -525,6 +653,7 @@ async function initializeMainApp() {
   await loadRecentCaptures();
   await initializeAI();
 
+  // Modal event listeners are already set up in init()
   // Proofreader API will be initialized on first user interaction
 }
 
@@ -1992,16 +2121,16 @@ async function downloadAllModels() {
 
   } catch (error) {
     console.error('❌ Failed to download models:', error);
-    
+
     // Show user-friendly error
     if (splashDownloadText) {
-      splashDownloadText.textContent = 'Download failed - Click to retry';
+      splashDownloadText.textContent = 'Download failed - Refer to setup guide';
     }
     
     // Re-enable download button
     if (splashDownload) {
       splashDownload.disabled = false;
-      splashDownload.textContent = 'Download All Models (~1.8GB)';
+      splashDownload.textContent = 'Download AI Models';
     }
     
     throw error;
