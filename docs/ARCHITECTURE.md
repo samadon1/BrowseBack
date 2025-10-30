@@ -70,7 +70,7 @@
 │                                                              │
 │         ┌────────────────────────────────────┐              │
 │         │     Chrome Prompt API              │              │
-│         │      (Future Integration)          │              │
+│         │                                    │              │
 │         │                                    │              │
 │         │  • OCR from screenshots            │              │
 │         │  • Multimodal processing           │              │
