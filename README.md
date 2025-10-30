@@ -29,6 +29,18 @@ BrowseBack runs silently in the background, automatically:
 - ✅ **Zero subscription fees** - no cloud costs
 - ✅ **You own your data** - export or delete anytime
 
+## 👥 Use Cases
+
+BrowseBack is perfect for anyone who needs to recall what they've seen online:
+
+- **🎓 Students** - Find lecture notes, research papers, and study materials you've browsed
+- **💼 Executives** - Recall details from market research, competitor analysis, and reports
+- **👨‍💻 Engineers** - Quickly find API docs, Stack Overflow solutions, and technical articles
+- **💰 Sales Teams** - Remember product details, customer research, and competitive intel
+- **🧠 People with ADHD** - Never lose track of important information in your browsing sessions
+- **🔬 Researchers** - Track down sources and references you encountered during your work
+- **📝 Content Creators** - Find inspiration and reference materials from your browsing history
+
 ---
 
 ## 🚀 Installation
@@ -60,9 +72,19 @@ BrowseBack runs silently in the background, automatically:
    - Click on the BrowseBack icon in your toolbar
    - Allow necessary permissions when prompted
 
-4. **Start Browsing!**
-   - BrowseBack starts capturing automatically
-   - Click the extension icon to search your memory
+4. **Download AI Models** (First Time Setup)
+   - When you first open BrowseBack, you'll see a setup guide
+   - Click **"Download AI Components"** to start downloading Gemini Nano
+   - The download is ~1.5GB and may take several minutes
+   - You can track progress in the extension popup
+   - **Note**: Models download once and are shared across all Chrome AI apps
+
+5. **Start Browsing!**
+   - Once AI models are ready, BrowseBack starts capturing automatically
+   - Click the extension icon anytime to search your memory
+   - Use Timeline, Search, or Ask modes to find what you need
+
+> 💡 **Tip**: For detailed AI setup instructions, see the [AI Setup Guide](docs/AI_SETUP_GUIDE.md)
 
 ---
 
@@ -215,6 +237,19 @@ Average storage per capture: **~200 KB** (WebP compressed)
 | 1 min    | ~480         | ~96 MB      | ~672 MB     |
 
 *IndexedDB quota: Typically 10-50% of available disk space*
+
+---
+
+## 📚 Documentation
+
+Additional documentation is available in the [`docs/`](docs/) directory:
+
+- **[Quickstart Guide](docs/QUICKSTART.md)** - Get started quickly
+- **[Architecture](docs/ARCHITECTURE.md)** - Technical deep dive
+- **[AI Setup Guide](docs/AI_SETUP_GUIDE.md)** - Chrome Built-in AI setup
+- **[Demo Script](docs/DEMO_SCRIPT_3MIN.md)** - 3-minute demo walkthrough
+- **[Testing Guide](docs/TESTING.md)** - How to test the extension
+- **[Submission Guide](docs/SUBMISSION.md)** - Hackathon submission details
 
 ---
 
