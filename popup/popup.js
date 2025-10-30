@@ -223,6 +223,38 @@ function setupModalEventListeners() {
     });
   }
 
+  // Copy components URL button
+  const copyComponentsBtn = document.getElementById('copyComponentsBtn');
+  if (copyComponentsBtn) {
+    copyComponentsBtn.addEventListener('click', () => {
+      const componentsUrl = document.getElementById('componentsUrl');
+      if (componentsUrl) {
+        navigator.clipboard.writeText(componentsUrl.textContent).then(() => {
+          // Show checkmark icon
+          copyComponentsBtn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          `;
+          copyComponentsBtn.style.color = 'var(--success)';
+
+          // Reset after 2 seconds
+          setTimeout(() => {
+            copyComponentsBtn.innerHTML = `
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            `;
+            copyComponentsBtn.style.color = '';
+          }, 2000);
+        }).catch(err => {
+          console.error('Failed to copy:', err);
+        });
+      }
+    });
+  }
+
   // Copy individual flag URLs
   const flagCopyBtns = document.querySelectorAll('.flag-copy-btn');
   flagCopyBtns.forEach(btn => {
@@ -344,7 +376,7 @@ async function checkAIAvailability() {
       } else {
         // Show download button for both models
         splashDownloadStatus.style.display = 'flex';
-        splashDownloadText.textContent = 'AI & Proofreader models ready for download. Click on download';
+        splashDownloadText.textContent = 'AI models ready for download. Click on download';
         splashProgress.style.width = '0%';
         splashProgressText.textContent = '0%';
         
@@ -2026,6 +2058,11 @@ async function downloadAllModels() {
   console.log('📊 Monitor progress at: chrome://components');
   console.log('🔍 Look for: "Optimization Guide On Device Model" and "Proofreader"');
 
+  // Check if API is available before attempting download
+  if (typeof window.LanguageModel === 'undefined') {
+    throw new Error('LanguageModel API is not available. Please enable Chrome flags first.');
+  }
+
   let aiDownloadComplete = false;
   let proofreaderDownloadComplete = false;
   let totalProgress = 0;
@@ -2034,15 +2071,30 @@ async function downloadAllModels() {
     // Download AI model first
     console.log('🤖 Starting AI model download...');
     splashDownloadText.textContent = 'Downloading AI model...';
-    
+
+    // Track if progress events fired
+    let progressEventFired = false;
+
+    // Start a simulated progress indicator in case real progress events don't fire
+    const progressSimulator = setInterval(() => {
+      if (!progressEventFired && totalProgress < 85) {
+        totalProgress += 5;
+        if (splashProgress) {
+          splashProgress.style.width = `${totalProgress}%`;
+          splashProgressText.textContent = `${totalProgress}%`;
+        }
+      }
+    }, 500);
+
     const aiSession = await window.LanguageModel.create({
       expectedOutputs: [{ type: 'text', languages: ['en'] }],
       outputLanguage: 'en',
       monitor(m) {
         m.addEventListener('downloadprogress', (e) => {
+          progressEventFired = true;
           const percent = Math.round(e.loaded * 100);
           console.log(`📥 AI model: ${percent}% complete`);
-          
+
           // Update progress (AI model is 90% of total progress)
           totalProgress = Math.round(percent * 0.9);
           if (splashProgress) {
@@ -2053,6 +2105,16 @@ async function downloadAllModels() {
         });
       }
     });
+
+    // Stop the simulator
+    clearInterval(progressSimulator);
+
+    // Set to 90% (AI model complete)
+    totalProgress = 90;
+    if (splashProgress) {
+      splashProgress.style.width = '90%';
+      splashProgressText.textContent = '90%';
+    }
 
     aiDownloadComplete = true;
     // Store the AI session globally
