@@ -6,6 +6,25 @@ BrowseBack is a Chrome extension that automatically captures and indexes your br
 
 ---
 
+## 📸 Screenshots
+
+### Timeline View
+<img src="images/vertical_1.png" alt="Timeline View" width="400">
+
+### Search Mode
+<img src="images/vertical_2.png" alt="Search Mode" width="400">
+
+### Ask Mode - AI-Powered Q&A
+<img src="images/vertical_3.png" alt="Ask Mode" width="400">
+
+### Transcription Feature
+<img src="images/vertical_4.png" alt="Transcription" width="400">
+
+### Full Page View
+<img src="images/horizontal_1.png" alt="Full Page View" width="800">
+
+---
+
 ## 📋 Table of Contents
 
 - [🎯 The Problem](#-the-problem)
