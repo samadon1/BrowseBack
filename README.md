@@ -2,7 +2,7 @@
 
 **Your photographic browsing memory. Search everything you've seen online.**
 
-BrowseBack is a Chrome extension that automatically captures and indexes your browsing activity, creating a searchable "photographic memory" of everything you've seen online. Unlike cloud-based alternatives like Rewind.ai, **all data processing happens locally** using Chrome's built-in AI, ensuring complete privacy.
+BrowseBack is a Chrome extension that automatically captures and indexes your browsing activity, creating a searchable "photographic memory" of everything you've seen online. **All data processing happens locally** using Chrome's built-in AI, ensuring complete privacy.
 
 ---
 
@@ -230,20 +230,6 @@ BrowseBack/
 
 ## 🏆 Google Chrome Built-in AI Challenge 2025
 
-### APIs Used
-
-BrowseBack leverages these Chrome Built-in AI APIs:
-
-1. **Prompt API (Multimodal)**
-   - OCR text extraction from screenshots
-   - Image content analysis
-   - Potential: Audio transcription from videos
-
-2. **Future Enhancements** (post-MVP):
-   - **Summarizer API**: Daily digest of browsing activity
-   - **Translator API**: Search across multilingual content
-   - **Writer API**: Smart query suggestions
-
 ### Problem Solved
 
 BrowseBack solves the universal problem of **digital forgetfulness**. Users spend hours re-searching for information they've already seen. Our solution:
@@ -255,61 +241,11 @@ BrowseBack solves the universal problem of **digital forgetfulness**. Users spen
 
 ### Differentiator
 
-Unlike cloud-based solutions (Rewind.ai, Recall), BrowseBack is:
+Unlike cloud-based solutions, BrowseBack is:
 
 - ✅ **100% free** (no server costs)
 - ✅ **100% private** (local-only processing)
 - ✅ **100% offline** (network-resilient)
-
----
-
-## 🎬 Demo Video
-
-*[Link to 3-minute demo video on YouTube]*
-
-### Video Highlights
-
-1. **Installation** (15s): Quick setup in Chrome
-2. **Automatic Capture** (30s): Browse normally, see indicator working
-3. **Search Magic** (90s):
-   - Content search: "blue Python diagram"
-   - Time search: "yesterday afternoon"
-   - Visual timeline browsing
-4. **Privacy Emphasis** (30s): Local storage dashboard, no cloud sync
-5. **Settings Tour** (15s): Customization options
-
----
-
-## ⚙️ Configuration
-
-### Settings
-
-Access settings by clicking the ⚙️ icon in the popup.
-
-**Capture Interval**
-- 5 seconds (high frequency)
-- 10 seconds (recommended)
-- 30 seconds (balanced)
-- 1 minute (low frequency)
-
-**Data Retention**
-- 3 days
-- 7 days (recommended)
-- 14 days
-- 30 days
-- 1 year
-
-### Storage Estimates
-
-Average storage per capture: **~200 KB** (WebP compressed)
-
-| Interval | Captures/Day | Storage/Day | 7-Day Total |
-|----------|--------------|-------------|-------------|
-| 10 sec   | ~2,880       | ~576 MB     | ~4 GB       |
-| 30 sec   | ~960         | ~192 MB     | ~1.3 GB     |
-| 1 min    | ~480         | ~96 MB      | ~672 MB     |
-
-*IndexedDB quota: Typically 10-50% of available disk space*
 
 ---
 
@@ -353,29 +289,6 @@ cd browseback
 
 ---
 
-## 🗺️ Roadmap
-
-### MVP (Current)
-- ✅ Automatic screenshot capture
-- ✅ DOM text extraction
-- ✅ Local search interface
-- ✅ Privacy dashboard
-
-### Phase 2 (Post-Hackathon)
-- [ ] Prompt API OCR integration (pending API availability)
-- [ ] Video audio transcription
-- [ ] AI-powered summarization
-- [ ] Topic clustering
-- [ ] Timeline visualization
-
-### Phase 3 (Future)
-- [ ] Cross-device sync (optional, encrypted)
-- [ ] Browser extension for Edge/Brave
-- [ ] Mobile companion app
-- [ ] Export to Markdown/PDF
-
----
-
 ## 🤝 Contributing
 
 This is a hackathon project, but contributions are welcome!
@@ -403,31 +316,13 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ---
 
-## 📞 Contact
-
-- **Developer**: [Your Name]
-- **Email**: your.email@example.com
-- **GitHub**: [@yourusername](https://github.com/yourusername)
-- **Twitter**: [@yourhandle](https://twitter.com/yourhandle)
-
----
-
-## 🐛 Known Limitations
-
-1. **Prompt API Availability**: OCR requires enrollment in Early Preview Program
-2. **Storage Quota**: Heavy users may hit IndexedDB limits (mitigated by retention policy)
-3. **Content Change Detection**: Simple hash-based (may miss subtle changes)
-4. **Service Worker Limitations**: AI processing in popup (not background) due to Canvas API restrictions
-
----
-
 ## 💡 FAQ
 
 **Q: Does BrowseBack slow down my browser?**
 A: No. Captures happen asynchronously and don't block tab rendering.
 
 **Q: Can I use this on mobile?**
-A: Not yet. Chrome extensions don't support mobile, but we're exploring alternatives.
+A: Not yet. Chrome extensions don't support mobile, but we're exploring Firebase AI.
 
 **Q: What happens if I run out of storage?**
 A: BrowseBack automatically deletes old captures based on your retention settings.
@@ -444,10 +339,8 @@ A: Absolutely. All data stays in IndexedDB on your device. No network requests, 
 
 This project was created for the Google Chrome Built-in AI Challenge 2025 to showcase the power of client-side AI and privacy-first innovation.
 
-**#ChromeAI #GeminiNano #PrivacyFirst #LocalAI**
-
 ---
 
-**Made with 🧠 and ❤️ by [Your Name]**
+**Made with 🧠 and ❤️ by Samuel Donkor**
 
 *Give your browser a brain boost!*
