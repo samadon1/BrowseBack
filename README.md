@@ -1,4 +1,4 @@
-# 🧠 BrowseBack
+# <img src="icons/icon48.png" alt="BrowseBack" width="32" style="vertical-align: middle;"> BrowseBack
 
 **Your photographic browsing memory. Search everything you've seen online.**
 
@@ -25,7 +25,7 @@ BrowseBack is a Chrome extension that automatically captures and indexes your br
       <img src="images/vertical_3.png" alt="Ask Mode" width="100%">
     </td>
     <td width="50%">
-      <h3>Chat Follow-up Questions</h3>
+      <h3>Chat Follow-up Questions + Sources/Links</h3>
       <img src="images/vertical_4.png" alt="Follow-up Chat" width="100%">
     </td>
   </tr>
