@@ -1810,25 +1810,25 @@ function formatTimeAgo(date) {
  * Show specific state
  */
 function showState(state) {
-  resultsContainer.style.display = 'none';
-  loadingState.style.display = 'none';
-  aiLoadingState.style.display = 'none';
-  emptyState.style.display = 'none';
-  noResultsState.style.display = 'none';
-  aiAnswerContainer.style.display = 'none';
+  if (resultsContainer) resultsContainer.style.display = 'none';
+  if (loadingState) loadingState.style.display = 'none';
+  if (aiLoadingState) aiLoadingState.style.display = 'none';
+  if (emptyState) emptyState.style.display = 'none';
+  if (noResultsState) noResultsState.style.display = 'none';
+  if (aiAnswerContainer) aiAnswerContainer.style.display = 'none';
 
   switch (state) {
     case 'loading':
-      loadingState.style.display = 'flex';
+      if (loadingState) loadingState.style.display = 'flex';
       break;
     case 'aiLoading':
-      aiLoadingState.style.display = 'flex';
+      if (aiLoadingState) aiLoadingState.style.display = 'flex';
       break;
     case 'empty':
-      emptyState.style.display = 'flex';
+      if (emptyState) emptyState.style.display = 'flex';
       break;
     case 'noResults':
-      noResultsState.style.display = 'flex';
+      if (noResultsState) noResultsState.style.display = 'flex';
       break;
   }
 }
@@ -2418,15 +2418,13 @@ async function handleAskAI() {
   showState('aiLoading');
 
   try {
-    // First, correct any typos/grammar mistakes
-    const correctedQuery = await correctQuery(query);
+    // PERFORMANCE: Query correction disabled for faster responses
+    // const correctedQuery = await correctQuery(query);
+    const correctedQuery = query; // Skip correction for speed
 
     // Detect time-based queries
     const timeQuery = detectTimeQuery(correctedQuery);
-    console.log(`🔍 Original query: "${query}"`);
-    if (correctedQuery !== query) {
-      console.log(`📝 Corrected query: "${correctedQuery}"`);
-    }
+    console.log(`🔍 Query: "${query}"`);
     if (timeQuery.hasTimeFilter) {
       console.log(`⏰ Time filter detected: ${timeQuery.timeFilter.start.toDateString()} to ${timeQuery.timeFilter.end.toDateString()}`);
     }
@@ -2633,27 +2631,96 @@ async function handleAskAI() {
     // Add user message
     addChatMessage('user', query);
 
-    // Show typing animation
-    const loadingEl = document.createElement('div');
-    loadingEl.className = 'chat-message ai';
-    loadingEl.innerHTML = `
-      <div class="chat-loading">
-        <div class="chat-loading-dot"></div>
-        <div class="chat-loading-dot"></div>
-        <div class="chat-loading-dot"></div>
-      </div>
-    `;
-    chatMessages.appendChild(loadingEl);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    // Generate AI answer with streaming
+    const stream = await generateAIAnswer(query, topResults);
 
-    // Generate AI answer
-    const answer = await generateAIAnswer(query, topResults);
+    // Create message bubble for streaming
+    const messageEl = document.createElement('div');
+    messageEl.className = 'chat-message ai';
+    const bubbleEl = document.createElement('div');
+    bubbleEl.className = 'chat-message-bubble';
+    bubbleEl.textContent = ''; // Start empty
+    messageEl.appendChild(bubbleEl);
+    chatMessages.appendChild(messageEl);
 
-    // Remove typing animation
-    chatMessages.removeChild(loadingEl);
+    // Stream the response
+    let fullAnswer = '';
+    try {
+      for await (const chunk of stream) {
+        // IMPORTANT: chunk is incremental (just the new word), not accumulated!
+        // We need to append each chunk to build the full answer
+        fullAnswer += chunk;
+        console.log('📝 Chunk:', chunk, '| Full answer so far:', fullAnswer.substring(0, 100));
 
-    // Add AI response
-    addChatMessage('ai', answer, topResults);
+        // Update bubble with accumulated text (plain text during streaming for speed)
+        bubbleEl.textContent = fullAnswer;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+      console.log('✅ Streaming complete. Final answer:', fullAnswer);
+
+      // NOW apply markdown formatting after streaming is complete
+      bubbleEl.innerHTML = parseMarkdown(fullAnswer);
+    } catch (streamError) {
+      console.error('❌ Streaming error:', streamError);
+      // Fallback: show error message
+      bubbleEl.textContent = fullAnswer || 'Error generating response';
+    }
+
+    // Add sources after streaming completes
+    if (topResults && topResults.length > 0) {
+      const sourcesEl = document.createElement('div');
+      sourcesEl.className = 'chat-message-sources';
+
+      const sourcesHeader = document.createElement('div');
+      sourcesHeader.className = 'chat-message-sources-header';
+      sourcesHeader.textContent = 'Sources';
+      sourcesEl.appendChild(sourcesHeader);
+
+      const sourcesGrid = document.createElement('div');
+      sourcesGrid.className = 'chat-sources-grid';
+
+      topResults.forEach(source => {
+        const sourceItem = document.createElement('div');
+        sourceItem.className = 'chat-source-item';
+
+        if (source.type === 'transcript') {
+          const iconDiv = document.createElement('div');
+          iconDiv.className = 'chat-source-transcript-icon';
+          iconDiv.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M8 12h8M8 8h8M8 16h4"></path>
+            </svg>
+          `;
+          sourceItem.appendChild(iconDiv);
+        } else {
+          const thumbnail = document.createElement('img');
+          thumbnail.className = 'chat-source-thumbnail';
+          thumbnail.src = source.screenshot || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
+          thumbnail.alt = source.title || 'Untitled';
+          sourceItem.appendChild(thumbnail);
+        }
+
+        const title = document.createElement('div');
+        title.className = 'chat-source-title';
+        title.textContent = source.type === 'transcript' ? (source.tabTitle || source.title || 'Untitled Transcript') : (source.title || 'Untitled Page');
+        sourceItem.appendChild(title);
+
+        if (source.type === 'transcript') {
+          sourceItem.addEventListener('click', () => openTranscriptViewer(source));
+        } else if (source.url) {
+          sourceItem.addEventListener('click', () => chrome.tabs.create({ url: source.url }));
+        }
+
+        sourcesGrid.appendChild(sourceItem);
+      });
+
+      sourcesEl.appendChild(sourcesGrid);
+      messageEl.appendChild(sourcesEl);
+    }
+
+    // Store in history
+    chatHistory.push({ type: 'ai', content: fullAnswer, sources: topResults });
 
     // Clear and focus the chat input field
     chatInputField.value = '';
@@ -2731,12 +2798,12 @@ USER'S QUESTION: ${query}
 
 YOUR ANSWER (be conversational and specific):`;
 
-    // Generate answer (non-streaming to prevent flickering)
-    console.log('🤖 Generating AI response...');
-    const answer = await aiSession.prompt(prompt);
-    console.log('✅ AI response generated');
+    // STREAMING: Generate answer with streaming for faster perceived performance
+    console.log('🤖 Generating AI response with streaming...');
+    const stream = await aiSession.promptStreaming(prompt);
+    console.log('✅ AI streaming started');
 
-    return answer;
+    return stream;
 
   } catch (error) {
     console.error('Error generating AI answer:', error);
@@ -2979,32 +3046,100 @@ async function handleChatSendFromInput() {
   addChatMessage('user', query);
   chatInputField.value = '';
 
-  // Show WhatsApp-style loading indicator
-  const loadingEl = document.createElement('div');
-  loadingEl.className = 'chat-message ai';
-  loadingEl.innerHTML = `
-    <div class="chat-loading">
-      <div class="chat-loading-dot"></div>
-      <div class="chat-loading-dot"></div>
-      <div class="chat-loading-dot"></div>
-    </div>
-  `;
-  chatMessages.appendChild(loadingEl);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-
   try {
     // Use existing context for follow-up questions
-    const answer = await generateAIAnswer(query, chatContext || []);
+    const stream = await generateAIAnswer(query, chatContext || []);
 
-    // Remove loading indicator
-    chatMessages.removeChild(loadingEl);
+    // Create message bubble for streaming
+    const messageEl = document.createElement('div');
+    messageEl.className = 'chat-message ai';
+    const bubbleEl = document.createElement('div');
+    bubbleEl.className = 'chat-message-bubble';
+    bubbleEl.textContent = ''; // Start empty
+    messageEl.appendChild(bubbleEl);
+    chatMessages.appendChild(messageEl);
 
-    // Add AI response
-    addChatMessage('ai', answer, chatContext);
+    // Stream the response
+    let fullAnswer = '';
+    try {
+      for await (const chunk of stream) {
+        // IMPORTANT: chunk is incremental (just the new word), not accumulated!
+        // We need to append each chunk to build the full answer
+        fullAnswer += chunk;
+        console.log('📝 Chat chunk:', chunk, '| Full so far:', fullAnswer.substring(0, 100));
+
+        // Update bubble with accumulated text (plain text during streaming for speed)
+        bubbleEl.textContent = fullAnswer;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+      console.log('✅ Chat streaming complete. Final answer:', fullAnswer);
+
+      // NOW apply markdown formatting after streaming is complete
+      bubbleEl.innerHTML = parseMarkdown(fullAnswer);
+    } catch (streamError) {
+      console.error('❌ Chat streaming error:', streamError);
+      // Fallback: show error message
+      bubbleEl.textContent = fullAnswer || 'Error generating response';
+    }
+
+    // Add sources after streaming completes (for follow-up questions)
+    if (chatContext && chatContext.length > 0) {
+      const sourcesEl = document.createElement('div');
+      sourcesEl.className = 'chat-message-sources';
+
+      const sourcesHeader = document.createElement('div');
+      sourcesHeader.className = 'chat-message-sources-header';
+      sourcesHeader.textContent = 'Sources';
+      sourcesEl.appendChild(sourcesHeader);
+
+      const sourcesGrid = document.createElement('div');
+      sourcesGrid.className = 'chat-sources-grid';
+
+      chatContext.forEach(source => {
+        const sourceItem = document.createElement('div');
+        sourceItem.className = 'chat-source-item';
+
+        if (source.type === 'transcript') {
+          const iconDiv = document.createElement('div');
+          iconDiv.className = 'chat-source-transcript-icon';
+          iconDiv.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M8 12h8M8 8h8M8 16h4"></path>
+            </svg>
+          `;
+          sourceItem.appendChild(iconDiv);
+        } else {
+          const thumbnail = document.createElement('img');
+          thumbnail.className = 'chat-source-thumbnail';
+          thumbnail.src = source.screenshot || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
+          thumbnail.alt = source.title || 'Untitled';
+          sourceItem.appendChild(thumbnail);
+        }
+
+        const title = document.createElement('div');
+        title.className = 'chat-source-title';
+        title.textContent = source.type === 'transcript' ? (source.tabTitle || source.title || 'Untitled Transcript') : (source.title || 'Untitled Page');
+        sourceItem.appendChild(title);
+
+        if (source.type === 'transcript') {
+          sourceItem.addEventListener('click', () => openTranscriptViewer(source));
+        } else if (source.url) {
+          sourceItem.addEventListener('click', () => chrome.tabs.create({ url: source.url }));
+        }
+
+        sourcesGrid.appendChild(sourceItem);
+      });
+
+      sourcesEl.appendChild(sourcesGrid);
+      messageEl.appendChild(sourcesEl);
+    }
+
+    // Store in history
+    chatHistory.push({ type: 'ai', content: fullAnswer, sources: chatContext });
 
   } catch (error) {
     console.error('Chat AI failed:', error);
-    chatMessages.removeChild(loadingEl);
     addChatMessage('ai', "I'm sorry, I encountered an error. Please try again.");
   } finally {
     // Re-enable input and reset flag
@@ -4343,17 +4478,27 @@ async function handleTranscriptQuery() {
 
     // Create AI session
     const querySession = await window.LanguageModel.create({
-      expectedOutputs: [{ type: 'text', languages: ['en'] }]
+      expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      outputLanguage: 'en'
     });
 
-    // Generate response
-    const response = await querySession.prompt(
+    // Generate response with streaming
+    const stream = await querySession.promptStreaming(
       `Based on this transcript, answer the following question:\n\nQuestion: ${query}\n\nTranscript:\n${currentTranscript}`
     );
 
-    // Update summary with response (render as markdown)
+    // Stream the response with chunk accumulation
+    let fullResponse = '';
+    for await (const chunk of stream) {
+      fullResponse += chunk; // Accumulate chunks (streaming provides deltas, not full text)
+      if (summaryText) {
+        summaryText.textContent = fullResponse; // Show plain text while streaming
+      }
+    }
+
+    // Apply markdown formatting after streaming completes
     if (summaryText) {
-      summaryText.innerHTML = parseMarkdown(response);
+      summaryText.innerHTML = parseMarkdown(fullResponse);
     }
 
     // Clear input
@@ -4394,17 +4539,27 @@ async function handleActionPill(promptPrefix, actionType) {
 
     // Create AI session
     const actionSession = await window.LanguageModel.create({
-      expectedOutputs: [{ type: 'text', languages: ['en'] }]
+      expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      outputLanguage: 'en'
     });
 
-    // Generate response
-    const response = await actionSession.prompt(
+    // Generate response with streaming
+    const stream = await actionSession.promptStreaming(
       `${promptPrefix}:\n\n${currentTranscript}`
     );
 
-    // Update summary with response (render as markdown)
+    // Stream the response with chunk accumulation
+    let fullResponse = '';
+    for await (const chunk of stream) {
+      fullResponse += chunk; // Accumulate chunks (streaming provides deltas, not full text)
+      if (summaryText) {
+        summaryText.textContent = fullResponse; // Show plain text while streaming
+      }
+    }
+
+    // Apply markdown formatting after streaming completes
     if (summaryText) {
-      summaryText.innerHTML = parseMarkdown(response);
+      summaryText.innerHTML = parseMarkdown(fullResponse);
     }
 
     // Cleanup
