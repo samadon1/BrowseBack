@@ -2631,35 +2631,59 @@ async function handleAskAI() {
     // Add user message
     addChatMessage('user', query);
 
-    // Generate AI answer with streaming
-    const stream = await generateAIAnswer(query, topResults);
-
-    // Create message bubble for streaming
+    // Create message bubble for streaming IMMEDIATELY (before AI call)
     const messageEl = document.createElement('div');
     messageEl.className = 'chat-message ai';
     const bubbleEl = document.createElement('div');
     bubbleEl.className = 'chat-message-bubble';
-    bubbleEl.textContent = ''; // Start empty
+
+    // Show loading dots while waiting for stream to start
+    bubbleEl.innerHTML = `
+      <div class="chat-loading">
+        <div class="chat-loading-dot"></div>
+        <div class="chat-loading-dot"></div>
+        <div class="chat-loading-dot"></div>
+      </div>
+    `;
     messageEl.appendChild(bubbleEl);
     chatMessages.appendChild(messageEl);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 
-    // Stream the response
+    // Generate AI answer with streaming
+    const stream = await generateAIAnswer(query, topResults);
+
+    // Clear loading dots and start streaming
+    bubbleEl.textContent = '';
+
+    // Stream the response with performance tracking
     let fullAnswer = '';
+    const streamStartTime = performance.now();
+    let tokenCount = 0;
+
     try {
       for await (const chunk of stream) {
         // IMPORTANT: chunk is incremental (just the new word), not accumulated!
         // We need to append each chunk to build the full answer
         fullAnswer += chunk;
-        console.log('📝 Chunk:', chunk, '| Full answer so far:', fullAnswer.substring(0, 100));
+        tokenCount += chunk.split(/\s+/).length; // Rough token count (words)
 
         // Update bubble with accumulated text (plain text during streaming for speed)
         bubbleEl.textContent = fullAnswer;
         chatMessages.scrollTop = chatMessages.scrollHeight;
       }
-      console.log('✅ Streaming complete. Final answer:', fullAnswer);
+
+      const streamEndTime = performance.now();
+      const streamDuration = (streamEndTime - streamStartTime) / 1000; // Convert to seconds
+      const tokensPerSecond = Math.round(tokenCount / streamDuration);
 
       // NOW apply markdown formatting after streaming is complete
       bubbleEl.innerHTML = parseMarkdown(fullAnswer);
+
+      // Add tokens/sec indicator
+      const perfIndicator = document.createElement('div');
+      perfIndicator.className = 'chat-perf-indicator';
+      perfIndicator.textContent = `${tokensPerSecond} tokens/sec`;
+      bubbleEl.appendChild(perfIndicator);
     } catch (streamError) {
       console.error('❌ Streaming error:', streamError);
       // Fallback: show error message
@@ -3046,36 +3070,60 @@ async function handleChatSendFromInput() {
   addChatMessage('user', query);
   chatInputField.value = '';
 
+  // Create message bubble for streaming IMMEDIATELY (before AI call)
+  const messageEl = document.createElement('div');
+  messageEl.className = 'chat-message ai';
+  const bubbleEl = document.createElement('div');
+  bubbleEl.className = 'chat-message-bubble';
+
+  // Show loading dots while waiting for stream to start
+  bubbleEl.innerHTML = `
+    <div class="chat-loading">
+      <div class="chat-loading-dot"></div>
+      <div class="chat-loading-dot"></div>
+      <div class="chat-loading-dot"></div>
+    </div>
+  `;
+  messageEl.appendChild(bubbleEl);
+  chatMessages.appendChild(messageEl);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
   try {
     // Use existing context for follow-up questions
     const stream = await generateAIAnswer(query, chatContext || []);
 
-    // Create message bubble for streaming
-    const messageEl = document.createElement('div');
-    messageEl.className = 'chat-message ai';
-    const bubbleEl = document.createElement('div');
-    bubbleEl.className = 'chat-message-bubble';
-    bubbleEl.textContent = ''; // Start empty
-    messageEl.appendChild(bubbleEl);
-    chatMessages.appendChild(messageEl);
+    // Clear loading dots and start streaming
+    bubbleEl.textContent = '';
 
-    // Stream the response
+    // Stream the response with performance tracking
     let fullAnswer = '';
+    const streamStartTime = performance.now();
+    let tokenCount = 0;
+
     try {
       for await (const chunk of stream) {
         // IMPORTANT: chunk is incremental (just the new word), not accumulated!
         // We need to append each chunk to build the full answer
         fullAnswer += chunk;
-        console.log('📝 Chat chunk:', chunk, '| Full so far:', fullAnswer.substring(0, 100));
+        tokenCount += chunk.split(/\s+/).length; // Rough token count (words)
 
         // Update bubble with accumulated text (plain text during streaming for speed)
         bubbleEl.textContent = fullAnswer;
         chatMessages.scrollTop = chatMessages.scrollHeight;
       }
-      console.log('✅ Chat streaming complete. Final answer:', fullAnswer);
+
+      const streamEndTime = performance.now();
+      const streamDuration = (streamEndTime - streamStartTime) / 1000; // Convert to seconds
+      const tokensPerSecond = Math.round(tokenCount / streamDuration);
 
       // NOW apply markdown formatting after streaming is complete
       bubbleEl.innerHTML = parseMarkdown(fullAnswer);
+
+      // Add tokens/sec indicator
+      const perfIndicator = document.createElement('div');
+      perfIndicator.className = 'chat-perf-indicator';
+      perfIndicator.textContent = `${tokensPerSecond} tokens/sec`;
+      bubbleEl.appendChild(perfIndicator);
     } catch (streamError) {
       console.error('❌ Chat streaming error:', streamError);
       // Fallback: show error message
@@ -4509,8 +4557,6 @@ async function handleTranscriptQuery() {
       querySession.destroy();
     }
 
-    console.log('✅ Query answered successfully');
-
   } catch (error) {
     console.error('Failed to answer query:', error);
     const summaryText = document.getElementById('summaryText');
@@ -4566,8 +4612,6 @@ async function handleActionPill(promptPrefix, actionType) {
     if (actionSession && actionSession.destroy) {
       actionSession.destroy();
     }
-
-    console.log(`✅ ${actionType} generated successfully`);
 
   } catch (error) {
     console.error(`Failed to generate ${actionType}:`, error);

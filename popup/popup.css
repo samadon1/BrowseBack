@@ -1828,6 +1828,19 @@ body {
 .chat-message-bubble h5 { font-size: 0.9em; }
 .chat-message-bubble h6 { font-size: 0.85em; }
 
+/* Performance indicator for streaming tokens/sec */
+.chat-perf-indicator {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  text-align: right;
+  opacity: 0.6;
+}
+
 .chat-message-sources {
   margin-top: var(--space-3);
 }
