@@ -8,29 +8,49 @@ BrowseBack is a Chrome extension that automatically captures and indexes your br
 
 ## 📸 Screenshots
 
-### Timeline View
-<img src="images/vertical_1.png" alt="Timeline View" width="400">
-
-### Search Mode
-<img src="images/vertical_2.png" alt="Search Mode" width="400">
-
-### Ask Mode - AI-Powered Q&A
-<img src="images/vertical_3.png" alt="Ask Mode" width="400">
-
-### Chat Follow-up Questions
-<img src="images/vertical_4.png" alt="Follow-up Chat" width="400">
-
-### Transcription Feature
-<img src="images/vertical_5.png" alt="Transcription" width="400">
-
-### Analytics Dashboard
-<img src="images/vertical_6.png" alt="Analytics" width="400">
-
-### Settings & Privacy Controls
-<img src="images/vertical_7.png" alt="Settings" width="400">
+<table>
+  <tr>
+    <td width="50%">
+      <h3>Timeline View</h3>
+      <img src="images/vertical_1.png" alt="Timeline View" width="100%">
+    </td>
+    <td width="50%">
+      <h3>Search Mode</h3>
+      <img src="images/vertical_2.png" alt="Search Mode" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>Ask Mode - AI-Powered Q&A</h3>
+      <img src="images/vertical_3.png" alt="Ask Mode" width="100%">
+    </td>
+    <td width="50%">
+      <h3>Chat Follow-up Questions</h3>
+      <img src="images/vertical_4.png" alt="Follow-up Chat" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>Transcription Feature + Followup</h3>
+      <img src="images/vertical_5.png" alt="Transcription" width="100%">
+    </td>
+    <td width="50%">
+      <h3>Analytics Dashboard</h3>
+      <img src="images/vertical_6.png" alt="Analytics" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>Settings & Privacy Controls</h3>
+      <img src="images/vertical_7.png" alt="Settings" width="100%">
+    </td>
+    <td width="50%">
+    </td>
+  </tr>
+</table>
 
 ### Full Page View
-<img src="images/horizontal_1.png" alt="Full Page View" width="800">
+<img src="images/horizontal_1.png" alt="Full Page View" width="100%">
 
 ---
 
