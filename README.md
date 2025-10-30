@@ -17,8 +17,17 @@ BrowseBack is a Chrome extension that automatically captures and indexes your br
 ### Ask Mode - AI-Powered Q&A
 <img src="images/vertical_3.png" alt="Ask Mode" width="400">
 
+### Chat Follow-up Questions
+<img src="images/vertical_4.png" alt="Follow-up Chat" width="400">
+
 ### Transcription Feature
-<img src="images/vertical_4.png" alt="Transcription" width="400">
+<img src="images/vertical_5.png" alt="Transcription" width="400">
+
+### Analytics Dashboard
+<img src="images/vertical_6.png" alt="Analytics" width="400">
+
+### Settings & Privacy Controls
+<img src="images/vertical_7.png" alt="Settings" width="400">
 
 ### Full Page View
 <img src="images/horizontal_1.png" alt="Full Page View" width="800">
