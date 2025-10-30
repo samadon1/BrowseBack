@@ -2564,11 +2564,11 @@ async function handleAskAI() {
       return b.timestamp - a.timestamp;
     });
 
-    // Filter for only highly relevant results (score > 20 for better accuracy)
+    // Filter for only highly relevant results (score > 10 for better accuracy)
     // Only include results with actual search scores (meaning they matched the query)
-    const relevantResults = allResults.filter(r => r.searchScore && r.searchScore > 20);
+    const relevantResults = allResults.filter(r => r.searchScore && r.searchScore > 10);
 
-    console.log(`🤖 Ask AI: ${relevantResults.length} relevant results (score > 20)`);
+    console.log(`🤖 Ask AI: ${relevantResults.length} relevant results (score > 10)`);
     if (relevantResults.length > 0) {
       console.log('Top 3 relevant results:', relevantResults.slice(0, 3).map(r => ({
         type: r.type,
@@ -2652,16 +2652,20 @@ async function handleAskAI() {
     // Generate AI answer with streaming
     const stream = await generateAIAnswer(query, topResults);
 
-    // Clear loading dots and start streaming
-    bubbleEl.textContent = '';
-
     // Stream the response with performance tracking
     let fullAnswer = '';
     const streamStartTime = performance.now();
     let tokenCount = 0;
+    let isFirstChunk = true;
 
     try {
       for await (const chunk of stream) {
+        // Clear loading dots on first chunk
+        if (isFirstChunk) {
+          bubbleEl.textContent = '';
+          isFirstChunk = false;
+        }
+
         // IMPORTANT: chunk is incremental (just the new word), not accumulated!
         // We need to append each chunk to build the full answer
         fullAnswer += chunk;
@@ -2804,8 +2808,8 @@ Guidelines:
 Duration: ${r.duration || 'Unknown'}
 Content: ${content}`;
       } else {
-        // Screenshots
-        const text = (r.extractedText || r.domText || '').substring(0, 500);
+        // Screenshots - use more context for better AI understanding
+        const text = (r.extractedText || r.domText || '').substring(0, 1000);
         return `[${i + 1}] "${r.title}" (${timeAgo})
 URL: ${r.url}
 Content: ${text}`;
@@ -3092,16 +3096,20 @@ async function handleChatSendFromInput() {
     // Use existing context for follow-up questions
     const stream = await generateAIAnswer(query, chatContext || []);
 
-    // Clear loading dots and start streaming
-    bubbleEl.textContent = '';
-
     // Stream the response with performance tracking
     let fullAnswer = '';
     const streamStartTime = performance.now();
     let tokenCount = 0;
+    let isFirstChunk = true;
 
     try {
       for await (const chunk of stream) {
+        // Clear loading dots on first chunk
+        if (isFirstChunk) {
+          bubbleEl.textContent = '';
+          isFirstChunk = false;
+        }
+
         // IMPORTANT: chunk is incremental (just the new word), not accumulated!
         // We need to append each chunk to build the full answer
         fullAnswer += chunk;
