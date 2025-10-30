@@ -1640,7 +1640,7 @@ function createResultCard(result) {
       other: '#71717a'
     };
     const tagColor = tagColors[tag] || tagColors.other;
-    url.innerHTML = `<span style="opacity: 0.6;">🎤</span> ${duration} • ${wordCount} words • <span style="display: inline-block; padding: 0.125rem 0.5rem; background: ${tagColor}15; color: ${tagColor}; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">${tag}</span>`;
+    url.innerHTML = `<span style="opacity: 0.6;"></span> ${duration} • ${wordCount} words • <span style="display: inline-block; padding: 0.125rem 0.5rem; background: ${tagColor}15; color: ${tagColor}; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">${tag}</span>`;
   } else {
     url.textContent = truncateUrl(result.url);
   }
@@ -2699,12 +2699,26 @@ Guidelines:
 
     // Build context from search results with timestamps
     const context = results.map((r, i) => {
-      const text = (r.extractedText || r.domText || '').substring(0, 500);
       const date = new Date(r.timestamp);
       const timeAgo = formatTimeAgo(date);
-      return `[${i + 1}] "${r.title}" (${timeAgo})
+
+      // Handle transcripts differently from screenshots
+      if (r.type === 'transcript') {
+        const title = r.tabTitle || r.title || 'Untitled Transcript';
+        const transcriptText = r.text || '';
+        const summary = r.summary || '';
+        const content = summary ? `Summary: ${summary}\n\nFull Transcript: ${transcriptText.substring(0, 1000)}` : transcriptText.substring(0, 1000);
+
+        return `[${i + 1}] Transcript: "${title}" (${timeAgo})
+Duration: ${r.duration || 'Unknown'}
+Content: ${content}`;
+      } else {
+        // Screenshots
+        const text = (r.extractedText || r.domText || '').substring(0, 500);
+        return `[${i + 1}] "${r.title}" (${timeAgo})
 URL: ${r.url}
 Content: ${text}`;
+      }
     }).join('\n\n');
 
     // Generate conversational answer
@@ -2888,21 +2902,47 @@ function addChatMessage(type, content, sources = null) {
       const sourceItem = document.createElement('div');
       sourceItem.className = 'chat-source-item';
 
-      const thumbnail = document.createElement('img');
-      thumbnail.className = 'chat-source-thumbnail';
-      thumbnail.src = source.screenshot || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
-      thumbnail.alt = source.title;
+      // Use icon for transcripts, thumbnail for screenshots
+      if (source.type === 'transcript') {
+        const iconDiv = document.createElement('div');
+        iconDiv.className = 'chat-source-transcript-icon';
+        iconDiv.innerHTML = `
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M8 12h8M8 8h8M8 16h4"></path>
+          </svg>
+        `;
+        sourceItem.appendChild(iconDiv);
+      } else {
+        const thumbnail = document.createElement('img');
+        thumbnail.className = 'chat-source-thumbnail';
+        thumbnail.src = source.screenshot || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
+        thumbnail.alt = source.title || 'Untitled';
+        sourceItem.appendChild(thumbnail);
+      }
 
       const title = document.createElement('div');
       title.className = 'chat-source-title';
-      title.textContent = source.title || 'Untitled Page';
 
-      sourceItem.appendChild(thumbnail);
+      // Handle transcripts vs screenshots
+      if (source.type === 'transcript') {
+        title.textContent = source.tabTitle || source.title || 'Untitled Transcript';
+      } else {
+        title.textContent = source.title || 'Untitled Page';
+      }
+
       sourceItem.appendChild(title);
 
-      sourceItem.addEventListener('click', () => {
-        chrome.tabs.create({ url: source.url });
-      });
+      // Only make clickable if it has a URL (screenshots), or open transcript viewer
+      if (source.type === 'transcript') {
+        sourceItem.addEventListener('click', () => {
+          openTranscriptViewer(source);
+        });
+      } else if (source.url) {
+        sourceItem.addEventListener('click', () => {
+          chrome.tabs.create({ url: source.url });
+        });
+      }
 
       sourcesGrid.appendChild(sourceItem);
     });
