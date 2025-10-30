@@ -87,7 +87,7 @@ BrowseBack is a Chrome extension that automatically captures and indexes your br
 
 BrowseBack runs silently in the background, automatically:
 
-- 📸 **Capturing screenshots** of your active tab every 10 seconds
+- 📸 **Capturing screenshots** of your active tab
 - 🔤 **Extracting text** using OCR powered by Chrome Prompt API
 - 🔍 **Building a searchable local index** of all content
 - 🧠 **Letting you search** by content, time, or natural language
