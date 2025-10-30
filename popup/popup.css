@@ -3216,20 +3216,14 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-.splash-note {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  background: var(--neutral-50);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-full);
+.splash-tagline {
+  margin-top: auto;
+  padding-top: var(--space-6);
   font-size: var(--text-xs);
   color: var(--text-tertiary);
-}
-
-.splash-note svg {
-  color: var(--success);
+  text-align: center;
+  font-weight: 400;
+  letter-spacing: 0.5px;
 }
 
 .check-icon {
@@ -3675,7 +3669,7 @@ body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   max-width: 520px;
   width: 90%;
-  max-height: 88vh;
+  max-height: 92vh;
   overflow: hidden;
   animation: slideUp 0.3s ease;
   z-index: 10001; /* Above the overlay */
@@ -3732,16 +3726,16 @@ body {
 }
 
 .modal-body {
-  padding: var(--space-6);
+  padding: var(--space-5);
   overflow-y: auto;
-  max-height: calc(88vh - 100px);
+  max-height: calc(92vh - 100px);
 }
 
 .setup-steps {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  margin-bottom: var(--space-6);
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
 }
 
 .setup-step {
@@ -3779,13 +3773,13 @@ body {
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-primary);
-  margin: 0 0 var(--space-1) 0;
+  margin: 0 0 4px 0;
 }
 
 .step-content p {
   font-size: var(--text-xs);
   color: var(--text-tertiary);
-  margin: 0 0 var(--space-2) 0;
+  margin: 0 0 var(--space-1) 0;
   line-height: 1.4;
 }
 
@@ -3795,7 +3789,7 @@ body {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 6px;
 }
 
 .flags-list-with-copy li {

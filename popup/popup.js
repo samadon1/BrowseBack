@@ -324,7 +324,7 @@ async function checkAIAvailability() {
     }
 
     splashCheckAPI.innerHTML = '<span class="check-icon">✓</span>';
-    splashAPIText.textContent = 'API available';
+    splashAPIText.textContent = 'API enabled';
 
     // Step 2: Check model status
     splashModelStatus.style.display = 'flex';
@@ -354,13 +354,13 @@ async function checkAIAvailability() {
       setTimeout(() => {
         splashScreen.style.display = 'none';
         mainApp.style.display = 'flex';
-      }, 1000);
+      }, 1000);   
       return;
     }
 
     if (availability === 'downloadable' || availability === 'downloading') {
       splashCheckModel.innerHTML = '<span class="check-icon">✓</span>';
-      splashModelText.textContent = 'AI model found';
+      splashModelText.textContent = 'AI model ready';
 
       if (availability === 'downloading') {
         // Show downloading progress
