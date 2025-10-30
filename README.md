@@ -6,6 +6,28 @@ BrowseBack is a Chrome extension that automatically captures and indexes your br
 
 ---
 
+## 📋 Table of Contents
+
+- [🎯 The Problem](#-the-problem)
+- [✨ The Solution](#-the-solution)
+- [🔒 Privacy First](#-privacy-first)
+- [👥 Use Cases](#-use-cases)
+- [🚀 Installation](#-installation)
+- [🎮 Usage](#-usage)
+- [🏗️ Architecture](#️-architecture)
+- [🎓 How It Works](#-how-it-works)
+- [📚 Documentation](#-documentation)
+- [🛠️ Development](#️-development)
+- [🗺️ Roadmap](#️-roadmap)
+- [🏆 Google Chrome Built-in AI Challenge 2025](#-google-chrome-built-in-ai-challenge-2025)
+- [🎬 Demo Video](#-demo-video)
+- [⚙️ Configuration](#️-configuration)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+- [💡 FAQ](#-faq)
+
+---
+
 ## 🎯 The Problem
 
 - **Users forget** where they saw information online
@@ -134,10 +156,13 @@ BrowseBack/
 ### Technologies Used
 
 - **Chrome Extension Manifest V3**
-- **Chrome Prompt API** (multimodal) for OCR
-- **IndexedDB** for local storage
-- **WebP compression** for efficient screenshot storage
-- **Service Workers** for background processing
+- **Google Gemini Nano** - On-device AI model powering all intelligent features
+- **Chrome Prompt API (LanguageModel)** - AI question answering, transcription, and summarization
+- **Chrome Proofreader API** - Query correction and spell checking
+- **Chrome Speech Recognition API** - Real-time audio capture from tabs
+- **IndexedDB** - Local storage for captures and transcripts
+- **WebP compression** - Efficient screenshot storage
+- **Service Workers** - Background processing and capture automation
 
 ---
 
